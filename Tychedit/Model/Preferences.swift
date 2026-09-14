@@ -9,6 +9,31 @@ enum LineNumberMode: String, Codable, CaseIterable, Sendable {
     /// Distance from the caret's line, as vi's `relativenumber`; the caret's
     /// own line shows its absolute number.
     case relative
+
+    /// The next mode, for the toolbar button that steps through them.
+    var next: LineNumberMode {
+        switch self {
+        case .off: .absolute
+        case .absolute: .relative
+        case .relative: .off
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .off: "Line Numbers Off"
+        case .absolute: "Line Numbers"
+        case .relative: "Relative Line Numbers"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .off: "text.justify.left"
+        case .absolute: "list.number"
+        case .relative: "arrow.up.and.down.text.horizontal"
+        }
+    }
 }
 
 /// One mdship command's button: whether it is in the toolbar, and its icon.

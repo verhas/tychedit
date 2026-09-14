@@ -19,6 +19,16 @@ struct ContentView: View {
             StatusBar(document: document)
         }
         .toolbar {
+            // Editor display, on its own at the leading side, apart from the mdship commands.
+            ToolbarItem(placement: .navigation) {
+                let mode = Preferences.shared.lineNumbers
+                Button {
+                    Preferences.shared.lineNumbers = mode.next
+                } label: {
+                    Label(mode.title, systemImage: mode.icon)
+                }
+                .help("\(mode.title) — click for \(mode.next.title.lowercased())")
+            }
             ToolbarItemGroup {
                 OutlineMenu(document: document)
                 // The mdship commands chosen in Settings ▸ Toolbar, with their icons.
