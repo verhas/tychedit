@@ -6,3 +6,6 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 .claude
 /.idea
+.github/prompts
+.mdship
+.mcp.json

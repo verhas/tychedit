@@ -1,6 +1,6 @@
 # Tychedit
 
-A two-pane markdown editor for macOS that understands
+A two-pane Markdown editor for macOS that understands
 [mdship](https://pypi.org/project/mdship/) placeholders and runs mdship for
 you. Text on the left, preview on the right. The companion editor to Diptych.
 
@@ -204,7 +204,7 @@ Folding only hides text on screen: saving, find, undo and mdship see the whole
 document. When the caret moves into folded text (Go to Line, Find, a jump to a
 problem), that fold opens. Folds stay folded while you edit elsewhere, and
 through an mdship update. A fold is recognised by the text of its first line,
-so if mdship changes that line (for example by numbering a heading), that fold opens.
+so if mdship changes that line (for example, by numbering a heading), that fold opens.
 
 ## Running mdship
 
