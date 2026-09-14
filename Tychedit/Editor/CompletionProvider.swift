@@ -221,11 +221,16 @@ enum CompletionProvider {
         let lister: DirectoryLister
         let probe: FileSystemProbe
 
-        /// The configuration as typed so far, up to the closing `-->` if there is one.
+        /// The configuration as typed so far: up to its closing `-->`, or -- while
+        /// that is not written yet -- up to the next comment, so the keys of a
+        /// placeholder further down do not count as this one's.
         var outline: YAMLOutline {
             let start = definition.configStart
-            let close = ns.range(of: "-->", options: [], range: NSRange(location: caret, length: ns.length - caret))
-            let end = close.location == NSNotFound ? ns.length : close.location
+            let rest = NSRange(location: caret, length: ns.length - caret)
+            let close = ns.range(of: "-->", options: [], range: rest)
+            let nextOpen = ns.range(of: "<!--", options: [], range: rest)
+            let end = min(close.location == NSNotFound ? ns.length : close.location,
+                          nextOpen.location == NSNotFound ? ns.length : nextOpen.location)
             return YAMLOutline(ns.substring(with: NSRange(location: start, length: end - start)),
                                offset: start, line: definition.openLine)
         }
@@ -243,7 +248,7 @@ enum CompletionProvider {
                 }
             }
             let matching = CompletionProvider.filter(parameters, by: partial, name: \.name)
-            let items = matching.map { parameter in
+            var items = matching.map { parameter in
                 CompletionItem(label: parameter.name,
                                detail: parameter.summary,
                                insertion: parameter.insertion,
@@ -252,6 +257,13 @@ enum CompletionProvider {
                                continues: parameter.type.isFile || CompletionProvider.choices(for: parameter) != nil)
             }
             .sorted { $0.required && !$1.required }
+            // SET's keys are the variables themselves: say so, rather than
+            // suggesting that pattern and audit are all there is.
+            if definition.kind == .set, path.isEmpty, explicit || matching.isEmpty {
+                items.append(CompletionItem(label: "any-name: value",
+                                            detail: "SET takes any variable name; pattern and audit are the only reserved keys",
+                                            insertion: "\u{1}name\u{2}: \"value\"", kind: .key, required: false, continues: false))
+            }
             guard !items.isEmpty else { return nil }
             return CompletionList(items: items, range: NSRange(location: caret - partial.utf16.count, length: partial.utf16.count))
         }

@@ -96,6 +96,8 @@ struct NavigateCommands: Commands {
                 .keyboardShortcut("j", modifiers: [.command, .control])
             Button("Go to Line…") { document?.isGoToLinePresented = true }
                 .keyboardShortcut("l")
+            Button("Document Structure…") { document?.showStructure() }
+                .keyboardShortcut("o", modifiers: [.command, .option])
 
             Divider()
 
@@ -118,6 +120,15 @@ struct NavigateCommands: Commands {
 struct PlaceholderCommands: Commands {
     var body: some Commands {
         CommandMenu("Placeholder") {
+            Section("Insert at the Cursor") {
+                Button("Variable Reference <!--$var<>--><!---->") { document?.editor.insertVariableReference() }
+                    .keyboardShortcut("v", modifiers: [.command, .option])
+                Button("Comment Start <!--") { document?.editor.insertCommentStart() }
+                    .keyboardShortcut("/")
+                Button("Code Block ```") { document?.editor.insertCodeBlock() }
+                    .keyboardShortcut("c", modifiers: [.command, .option, .shift])
+            }
+            Divider()
             Section("Variable Sources") {
                 ForEach(PlaceholderSnippet.variableSources) { snippet in insert(snippet) }
             }

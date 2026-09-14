@@ -212,6 +212,17 @@ enum PlaceholderValidator {
                 }
             case .ai:
                 checkAI(outline, nameRange: nameRange)
+            case .importFile:
+                // Without `format`, mdship reads the format from the extension, and
+                // gives up on any it does not know.
+                if outline.entry("format") == nil, let entry = outline.entry("from"), let path = entry.value.scalarText {
+                    let ext = (path as NSString).pathExtension.lowercased()
+                    if !["json", "yaml", "yml", "toml", "xml"].contains(ext) {
+                        let shown = ext.isEmpty ? "" : "." + ext
+                        report(entry.value.textRange ?? entry.keyRange,
+                               "Cannot determine file format from extension '\(shown)'. Supported formats: .json, .yaml, .yml, .toml, .xml. Use 'format' parameter to specify explicitly.")
+                    }
+                }
             default:
                 break
             }

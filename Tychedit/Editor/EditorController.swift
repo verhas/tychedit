@@ -30,6 +30,9 @@ final class EditorController: NSObject {
     private let popup = CompletionPopup()
     private var activeCompletions: CompletionList?
     private var typedCharacter = false
+    /// An edit that may have put a backtick run inside a code block as long as
+    /// its fence: the range, its replacement, and the text before the change.
+    private var fenceCheck: (range: NSRange, replacement: String, text: String)?
 
     // Gutter and folding; see EditorFolding.swift.
     private(set) var gutter: EditorGutter!
@@ -681,6 +684,61 @@ final class EditorController: NSObject {
         replace(range, with: "", selecting: NSRange(location: range.location, length: 0), actionName: "Delete Line")
     }
 
+    /// A variable reference whose value may hold spaces, with the name selected.
+    func insertVariableReference() {
+        insert("<!--$\u{1}var\u{2}<>--><!---->", replacing: selectedRange, actionName: "Insert Variable Reference")
+        focus()
+    }
+
+    /// Starts a comment and offers the placeholders it can open.
+    func insertCommentStart() {
+        insert("<!--", replacing: selectedRange, actionName: "Insert Comment")
+        focus()
+        showCompletions(explicit: true)
+    }
+
+    /// An empty fenced code block with the caret inside, or the selected lines
+    /// fenced -- with a fence longer than any backtick run in them.
+    func insertCodeBlock() {
+        let selection = selectedRange
+        guard selection.length > 0 else {
+            insertSnippet("```\n\u{1}\u{2}\n```", block: true, actionName: "Insert Code Block")
+            return
+        }
+        let range = contentRange(of: selectedLines)
+        let code = nsText.substring(with: range)
+        let fence = String(repeating: "`", count: max(3, CodeFenceGuard.longestBacktickRun(in: code) + 1))
+        let fenced = fence + "\n" + code + "\n" + fence
+        replace(range, with: fenced, selecting: NSRange(location: range.location, length: (fenced as NSString).length),
+                actionName: "Insert Code Block")
+        focus()
+    }
+
+    /// Grows the fences of the code block the last edit happened in, when that
+    /// edit left a backtick run in the code as long as the fence -- which would
+    /// otherwise end the block there.
+    private func extendCodeFences() {
+        guard let check = fenceCheck else { return }
+        fenceCheck = nil
+        // The check describes the change that made the text what it is now, or nothing at all.
+        guard (check.text as NSString).replacingCharacters(in: check.range, with: check.replacement) == textView.string else { return }
+        let edits = CodeFenceGuard.edits(afterReplacing: check.range, in: check.text, with: check.replacement)
+        guard !edits.isEmpty, let storage = textView.textStorage else { return }
+        defer { fenceCheck = nil }
+        var selection = selectedRange
+        textView.breakUndoCoalescing()
+        for edit in edits {
+            guard textView.shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
+            storage.replaceCharacters(in: edit.range, with: NSAttributedString(string: edit.replacement, attributes: attributes))
+            textView.didChangeText()
+            if edit.range.location < selection.location {
+                selection.location += (edit.replacement as NSString).length - edit.range.length
+            }
+        }
+        textView.undoManager?.setActionName("Extend Code Fence")
+        textView.setSelectedRange(selection)
+    }
+
     /// Inserts a snippet. `\u{1}` and `\u{2}` mark the part to select afterwards.
     ///
     /// A block snippet -- a placeholder comment -- must start a line, so it
@@ -823,6 +881,12 @@ final class EditorTextView: NSTextView {
         controller?.drawFoldBadges(in: dirtyRect)
     }
 
+    /// Command-Delete removes the whole line rather than the part before the caret.
+    override func deleteToBeginningOfLine(_ sender: Any?) {
+        guard let controller else { return super.deleteToBeginningOfLine(sender) }
+        controller.deleteLines()
+    }
+
     override func resignFirstResponder() -> Bool {
         controller?.hideCompletions()
         return super.resignFirstResponder()
@@ -843,12 +907,24 @@ extension EditorController: NSTextViewDelegate {
         // refreshes the suggestions once the change has happened.
         if let replacement = replacementString {
             typedCharacter = (replacement.count == 1 && replacement != "\n") || (replacement.isEmpty && popup.isVisible)
+            // Backticks typed, pasted, or brought together by removing what was between them.
+            let text = nsText
+            let touchesBacktick = replacement.contains("`")
+                || (range.location > 0 && text.character(at: range.location - 1) == 96)
+                || (NSMaxRange(range) < text.length && text.character(at: NSMaxRange(range)) == 96)
+            if touchesBacktick, !textView.hasMarkedText() {
+                fenceCheck = (range, replacement, textView.string)
+            }
         }
         return true
     }
 
     func textDidChange(_ notification: Notification) {
         cachedLineIndex = nil
+        if fenceCheck != nil {
+            // After AppKit has finished with this change, as a change of its own.
+            DispatchQueue.main.async { [weak self] in self?.extendCodeFences() }
+        }
         gutter.updateThickness()
         onTextChange?(textView.string)
         if typedCharacter {

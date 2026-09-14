@@ -122,6 +122,20 @@ Accepting puts the caret on the empty line inside the comment, with the
 parameter list open. ⌃Space on an empty line outside any placeholder offers
 whole placeholders, ready to fill in.
 
+In a SET, ⌃Space also shows a reminder that any variable name is allowed:
+`pattern` and `audit` are the only reserved keys.
+
+**Inserting.** The Placeholder menu and a group of toolbar buttons of their own insert
+- a variable reference `<!--$var<>--><!---->`, with `var` selected (⌥⌘V);
+- a comment start `<!--`, with the placeholder names offered (⌘/);
+- a fenced code block with the caret inside, or fences around the selected
+  lines (⇧⌥⌘C).
+
+**Code fences grow.** When an edit inside a backtick-fenced block -- typing,
+pasting, or deleting what separated two runs -- leaves as many backticks in a
+row as the fence has, both fences get one more backtick than the longest run,
+so the block does not end early. One Undo takes it back.
+
 ⌃Space is also macOS's default shortcut for switching input sources. If that
 shortcut is on in System Settings ▸ Keyboard ▸ Keyboard Shortcuts, the system
 takes the key first; Escape and ⌥Esc still work.
@@ -141,6 +155,8 @@ an entry in the problems menu. The editor recognises:
 - regular expressions that do not compile, or have the wrong number of capture
   groups: SUP and SIP need one, SLURP rules need two
 - `@pattern` references that no SET defines
+- an IMPORT whose `from:` extension does not tell the format (`.md`, say) and
+  that has no `format:`
 - combinations mdship rejects or ignores:
   - `range` with `section`
   - PYTHON with both `run` and `define`
@@ -196,6 +212,24 @@ Text files open in Tychedit, reusing a window if the file is already open.
 Images and other files open in their own application, and folders open in
 Finder. A link to a file that does not exist offers to create it. Links clicked
 in the preview behave the same way.
+
+## Document structure
+
+**Navigate ▸ Document Structure…** (⌥⌘O), or the toolbar button next to the
+outline menu, opens a small window showing only the headings. A heading's
+section runs to the next heading of the same or a higher level, or to the end
+of the file.
+
+- Click a heading to show it in the editor; double-click to go there.
+- Collapse and expand headings like folders; that state survives edits.
+- Drag a heading up or down to move its whole section, subheadings included.
+- Drop it further left or right -- or onto another heading -- to change its
+  level; every subheading shifts by as much. A setext heading whose level
+  changes becomes a `#` heading.
+- Select several headings next to each other (⇧-click) to move them together.
+
+Headings inside generated placeholder content belong to mdship and are not
+shown. Each move is one undoable edit.
 
 ## Gutter, line numbers and folding
 
@@ -295,7 +329,9 @@ saves first and can undo.
 | Bold / Italic / Code / Strikethrough / Link  | ⌘B / ⌘I / ⌥⌘C / ⇧⌘X / ⌘K |
 | Shift Right / Left                           | ⌘] / ⌘[                  |
 | Move Line Up / Down                          | ⌥⌘[ / ⌥⌘]                |
-| Duplicate Line / Delete Line                 | ⌘D / ⇧⌘K                 |
+| Duplicate Line / Delete Line                 | ⌘D / ⇧⌘K or ⌘⌫           |
+| Insert Variable Reference / Comment / Code Block | ⌥⌘V / ⌘/ / ⇧⌥⌘C      |
+| Document Structure                           | ⌥⌘O                      |
 | mdship Update / Console                      | ⇧⌘U / ⇧⌘M                |
 | Fold / Unfold / Fold All / Unfold All        | ⌥⌘← / ⌥⌘→ / ⌥⇧⌘← / ⌥⇧⌘→  |
 | Show / Hide Preview                          | ⌥⌘P                      |
