@@ -43,6 +43,8 @@ final class EditorController: NSObject {
     var hiddenRanges: [NSRange] = []
     /// While the whole text is replaced, edits do not unfold anything.
     var replacingEverything = false
+    var findHighlights: [NSRange] = []
+    var currentFindMatch: NSRange?
 
     private var cachedLineIndex: LineIndex?
     private var styleAttributes: [TextStyle: [NSAttributedString.Key: Any]] = [:]
@@ -87,8 +89,10 @@ final class EditorController: NSObject {
         textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
+        // Tychedit's own find bar (FindController) replaces AppKit's, which has
+        // no regular expressions.
+        textView.usesFindBar = false
+        textView.isIncrementalSearchingEnabled = false
 
         // Every one of these would quietly corrupt a placeholder: smart quotes
         // break its YAML, a smart dash turns `-->` into `–>` and leaves the
@@ -357,17 +361,107 @@ final class EditorController: NSObject {
         let position = visiblePosition()
         onScroll?(position.line, position.atEnd)
         gutter.needsDisplay = true
+        gutter.hidePeek()
     }
 
     // MARK: - Find
 
-    /// Sends a find bar action to the editor. The action is read from the
-    /// sender's tag, which is how AppKit's own Find menu items talk to a text view.
-    func performFind(_ action: NSTextFinder.Action) {
-        focus()
-        let sender = NSMenuItem()
-        sender.tag = action.rawValue
-        textView.performTextFinderAction(sender)
+    /// Selects `range` and scrolls to it without taking keyboard focus from the
+    /// find bar, with the bouncing highlight that marks a found match.
+    func reveal(_ range: NSRange) {
+        textView.setSelectedRange(range)
+        scrollToCenter(range)
+        textView.showFindIndicator(for: range)
+    }
+
+    /// Every match in a light tint, the selected one stronger. Drawn behind the
+    /// text rather than set as attributes, so they never meet the problem
+    /// highlights or the styling.
+    func setFindHighlights(_ ranges: [NSRange], current: NSRange?) {
+        guard ranges != findHighlights || current != currentFindMatch else { return }
+        findHighlights = ranges
+        currentFindMatch = current
+        textView.needsDisplay = true
+    }
+
+    func drawFindHighlights(in dirtyRect: NSRect) {
+        guard !findHighlights.isEmpty, let layoutManager = textView.layoutManager,
+              let container = textView.textContainer else { return }
+        let origin = textView.textContainerOrigin
+        let visibleGlyphs = layoutManager.glyphRange(forBoundingRect: dirtyRect.offsetBy(dx: -origin.x, dy: -origin.y),
+                                                     in: container)
+        let visible = layoutManager.characterRange(forGlyphRange: visibleGlyphs, actualGlyphRange: nil)
+        // The first match that could be on screen, by binary search.
+        var low = 0
+        var high = findHighlights.count
+        while low < high {
+            let mid = (low + high) / 2
+            if NSMaxRange(findHighlights[mid]) < visible.location { low = mid + 1 } else { high = mid }
+        }
+        for range in findHighlights[low...] {
+            if range.location > NSMaxRange(visible) { break }
+            let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let color = range == currentFindMatch
+                ? NSColor.systemYellow.withAlphaComponent(0.75)
+                : NSColor.systemYellow.withAlphaComponent(0.3)
+            color.setFill()
+            layoutManager.enumerateEnclosingRects(forGlyphRange: glyphs,
+                                                  withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                                  in: container) { rect, _ in
+                let box = rect.offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: -1, dy: 0)
+                NSBezierPath(roundedRect: box, xRadius: 3, yRadius: 3).fill()
+            }
+        }
+    }
+
+    // MARK: - Reverting git changes
+
+    func revertLine(_ line: Int, of hunk: LineChanges.Hunk) {
+        apply(ChangeRevert.revertLine(line, of: hunk, in: text), actionName: "Revert Line")
+    }
+
+    func revertHunk(_ hunk: LineChanges.Hunk) {
+        apply(ChangeRevert.revertHunk(hunk, in: text), actionName: "Revert Change")
+    }
+
+    func restoreDeletedLines(of hunk: LineChanges.Hunk) {
+        apply(ChangeRevert.restoreDeletedLines(of: hunk, in: text), actionName: "Restore Deleted Lines")
+    }
+
+    /// Nil means the text changed since the gutter was drawn: nothing is done
+    /// rather than the wrong lines changed.
+    private func apply(_ edit: ChangeRevert.Edit?, actionName: String) {
+        guard let edit else { return NSSound.beep() }
+        let caret = NSRange(location: edit.range.location, length: 0)
+        replace(edit.range, with: edit.replacement, selecting: caret, actionName: actionName)
+    }
+
+    /// Replaces `range` and selects the new text, as one undoable change.
+    func replaceText(in range: NSRange, with string: String, actionName: String) {
+        replace(range, with: string, selecting: NSRange(location: range.location, length: (string as NSString).length),
+                actionName: actionName)
+    }
+
+    /// Replaces the text with `newText` by changing only the part that differs,
+    /// so one Undo takes it back and folds, caret and scroll stay where they are.
+    func applyMinimalEdit(_ newText: String, actionName: String) {
+        let old = nsText
+        let new = newText as NSString
+        let oldLength = old.length
+        let newLength = new.length
+        var prefix = 0
+        while prefix < min(oldLength, newLength), old.character(at: prefix) == new.character(at: prefix) { prefix += 1 }
+        var suffix = 0
+        while suffix < min(oldLength, newLength) - prefix,
+              old.character(at: oldLength - 1 - suffix) == new.character(at: newLength - 1 - suffix) { suffix += 1 }
+        let range = NSRange(location: prefix, length: oldLength - prefix - suffix)
+        guard range.length > 0 || newLength != oldLength else { return }
+        let replacement = new.substring(with: NSRange(location: prefix, length: newLength - prefix - suffix))
+        let selection = selectedRange
+        replace(range, with: replacement, selecting: nil, actionName: actionName)
+        let length = nsText.length
+        let location = min(selection.location, length)
+        textView.setSelectedRange(NSRange(location: location, length: 0))
     }
 
     // MARK: - Editing commands
@@ -664,6 +758,11 @@ final class EditorTextView: NSTextView {
         if controller?.showCompletions(explicit: true) != true {
             super.complete(sender)
         }
+    }
+
+    override func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        controller?.drawFindHighlights(in: rect)
     }
 
     override func draw(_ dirtyRect: NSRect) {

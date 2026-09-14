@@ -67,6 +67,21 @@ line endings, file permissions and extended attributes all stay as they were.
 when the window becomes active. If there are no unsaved edits, the file reloads,
 and **Undo** brings back the previous text.
 
+## Find and replace
+
+**⌘F** opens the find bar above the editor; **⌘R** opens it with the replace
+row too. The search field starts with the selected text, when there is some.
+- Three switches change how it matches, and are remembered in `settings.json`:
+  - **Aa**: match case;
+  - **W**: whole words only;
+  - **.\***: regular expression. The replacement can then use `$1`, `$2` …
+    for the groups, and `^` and `$` match at line starts and ends.
+- Every match is highlighted and counted ("2 of 7").
+- Return or ⌘G goes to the next match; ⇧Return or ⇧⌘G goes to the previous.
+- In the replace field, Return replaces the selected match and moves on.
+- **All** replaces every match as one change, so a single Undo takes it back.
+- Escape or **Done** closes the bar.
+
 ## Editing mdship placeholders
 
 **Parameter suggestions.** Inside a placeholder's opening comment, typing brings
@@ -179,7 +194,15 @@ The strip left of the text holds, from left to right:
   a green bar for added lines, a blue bar for changed lines, and a red wedge
   where committed lines were deleted. It is compared with `git show HEAD:file`
   when the file opens and whenever its window becomes active, so a commit made
-  in a terminal or in Diptych shows up.
+  in a terminal or in Diptych shows up. Hovering over a change shows what the
+  committed text was: the committed lines in red, the current ones in green.
+  Right-click to put it back:
+  - **Revert This Line** (or **Remove This Added Line**);
+  - **Revert Whole Change**, for a change of several lines;
+  - **Restore Deleted Lines**, on a red wedge.
+
+  Each revert is one undoable edit. If the line has been edited since the
+  gutter was drawn, nothing happens, rather than the wrong line changing.
 - **line numbers**: off, absolute (1, 2, 3…), or relative to the caret as in
   vi, where the caret's own line shows its absolute number. The line-numbers
   button at the left of the toolbar steps through the three; **View ▸ Line
@@ -251,7 +274,7 @@ saves first and can undo.
 |                                              |                          |
 | -------------------------------------------- | ------------------------ |
 | New / Open / Save / Save As / Close          | ⌘N / ⌘O / ⌘S / ⇧⌘S / ⌘W  |
-| Find / Find and Replace                      | ⌘F / ⌥⌘F                 |
+| Find / Find and Replace                      | ⌘F / ⌘R                  |
 | Find Next / Previous, Use Selection for Find | ⌘G / ⇧⌘G, ⌘E             |
 | Show completions                             | ⌃Space, Esc or ⌥Esc      |
 | Open link or referenced file                 | ⌘-click or ⌃⌘J           |

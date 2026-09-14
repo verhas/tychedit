@@ -43,6 +43,7 @@ final class Document: Identifiable {
 
     @ObservationIgnored let editor: EditorController
     @ObservationIgnored let preview: PreviewController
+    let find = FindController()
     @ObservationIgnored weak var window: NSWindow?
 
     @ObservationIgnored private var savedText = ""
@@ -64,7 +65,11 @@ final class Document: Identifiable {
         editor = EditorController(fontSize: preferences.fontSize)
         preview = PreviewController(showPlaceholders: preferences.showPlaceholders, fontSize: preferences.fontSize + 1)
 
-        editor.onTextChange = { [weak self] text in self?.textDidChange(text) }
+        find.editor = editor
+        editor.onTextChange = { [weak self] text in
+            self?.textDidChange(text)
+            self?.find.textDidChange()
+        }
         editor.onSelectionChange = { [weak self] in self?.updateCaret() }
         editor.onScroll = { [weak self] line, atEnd in
             guard Preferences.shared.syncScrolling else { return }
@@ -190,7 +195,7 @@ final class Document: Identifiable {
         let changes: LineChanges = switch baseline {
         case .unavailable: .none
         case .committed(let committed): LineChanges.compute(base: committed, current: text)
-        case .uncommitted: LineChanges.compute(base: "", current: text)
+        case .uncommitted: LineChanges.allAdded(text)
         }
         guard markdown else {
             // Code and other text: shown as it is, nothing to validate or fold.
