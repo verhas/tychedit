@@ -36,19 +36,162 @@ enum LineNumberMode: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// One mdship command's button: whether it is in the toolbar, and its icon.
+/// The toolbar buttons that are not mdship commands.
+enum ToolbarAction: String, CaseIterable, Sendable {
+    case lineNumbers
+    case wrapLines
+    case preview
+    case insertVariable
+    case insertVariableWithSpaces
+    case insertComment
+    case insertCodeBlock
+    case outline
+    case structure
+    case placeholders
+    case console
+
+    var title: String {
+        switch self {
+        case .lineNumbers: "Line Numbers"
+        case .wrapLines: "Wrap Lines"
+        case .preview: "Preview Pane"
+        case .insertVariable: "Insert Variable Reference <!--$var-->"
+        case .insertVariableWithSpaces: "Insert Variable Reference <!--$var<>--><!---->"
+        case .insertComment: "Insert Comment Start <!--"
+        case .insertCodeBlock: "Insert Code Block ```"
+        case .outline: "Outline Menu"
+        case .structure: "Document Structure"
+        case .placeholders: "Show Placeholders in Preview"
+        case .console: "mdship Console"
+        }
+    }
+
+    /// The group of buttons it sits in.
+    var group: ToolbarGroup {
+        switch self {
+        case .lineNumbers, .wrapLines, .preview: .view
+        case .insertVariable, .insertVariableWithSpaces, .insertComment, .insertCodeBlock: .insert
+        case .outline, .structure, .placeholders, .console: .document
+        }
+    }
+
+    /// A button that shows its state has an icon for each state.
+    var states: [String] {
+        switch self {
+        case .lineNumbers: ["Off", "Absolute", "Relative"]
+        case .wrapLines: ["Wrapping", "Not wrapping"]
+        case .preview: ["Shown", "Hidden"]
+        default: [""]
+        }
+    }
+
+    var defaultIcons: [String] {
+        switch self {
+        case .lineNumbers: [LineNumberMode.off.icon, LineNumberMode.absolute.icon, LineNumberMode.relative.icon]
+        case .wrapLines: ["arrow.turn.down.left", "arrow.right.to.line"]
+        case .preview: ["sidebar.right", "rectangle"]
+        case .insertVariable: ["dollarsign"]
+        case .insertVariableWithSpaces: ["dollarsign.square"]
+        case .insertComment: ["chevron.left.forwardslash.chevron.right"]
+        case .insertCodeBlock: ["ellipsis.curlybraces"]
+        case .outline: ["list.bullet.indent"]
+        case .structure: ["list.bullet.rectangle"]
+        case .placeholders: ["curlybraces.square"]
+        case .console: ["apple.terminal"]
+        }
+    }
+}
+
+/// The toolbar's groups of buttons, in order.
+enum ToolbarGroup: String, CaseIterable, Sendable {
+    case view
+    case insert
+    case document
+
+    var title: String {
+        switch self {
+        case .view: "Editor Display"
+        case .insert: "Inserting"
+        case .document: "Document and mdship"
+        }
+    }
+}
+
+/// One toolbar button -- an mdship command or a `ToolbarAction` -- whether it
+/// is in the toolbar, and its icons.
 struct ToolbarCommand: Codable, Equatable, Sendable, Identifiable {
-    /// `MdshipCommand.rawValue`.
+    /// `MdshipCommand.rawValue` or `ToolbarAction.rawValue`.
     var command: String
-    /// An SF Symbol name.
+    /// An SF Symbol name: the icon, or the first state's icon.
     var icon: String
     var shown: Bool
+    /// The icons of the other states, for a button that shows its state.
+    var alternateIcons: [String]
 
     var id: String { command }
 
-    static let defaults: [ToolbarCommand] = MdshipCommand.allCases.map {
-        ToolbarCommand(command: $0.rawValue, icon: $0.defaultIcon, shown: $0 == .update)
+    init(command: String, icon: String, shown: Bool, alternateIcons: [String] = []) {
+        self.command = command
+        self.icon = icon
+        self.shown = shown
+        self.alternateIcons = alternateIcons
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        command = try c.decode(String.self, forKey: .command)
+        icon = try c.decode(String.self, forKey: .icon)
+        shown = try c.decodeIfPresent(Bool.self, forKey: .shown) ?? true
+        alternateIcons = (try? c.decodeIfPresent([String].self, forKey: .alternateIcons)) ?? []
+    }
+
+    var action: ToolbarAction? { ToolbarAction(rawValue: command) }
+    var mdshipCommand: MdshipCommand? { MdshipCommand(rawValue: command) }
+
+    var title: String { action?.title ?? mdshipCommand?.title ?? command }
+    var group: ToolbarGroup { action?.group ?? .document }
+
+    var defaultIcons: [String] { action?.defaultIcons ?? [mdshipCommand?.defaultIcon ?? "questionmark.square.dashed"] }
+
+    /// The icon for state `state` (0 for a button without states).
+    func icon(state: Int) -> String {
+        state == 0 ? icon : (state - 1 < alternateIcons.count ? alternateIcons[state - 1] : defaultIcons[min(state, defaultIcons.count - 1)])
+    }
+
+    /// The icon of every state, settable.
+    var icons: [String] {
+        get { [icon] + alternateIcons }
+        set {
+            icon = newValue.first ?? icon
+            alternateIcons = Array(newValue.dropFirst())
+        }
+    }
+
+    static func defaultItem(for action: ToolbarAction) -> ToolbarCommand {
+        ToolbarCommand(command: action.rawValue, icon: action.defaultIcons[0], shown: true,
+                       alternateIcons: Array(action.defaultIcons.dropFirst()))
+    }
+
+    /// `stored`, in its order, with the buttons it lacks -- added in a later
+    /// version -- each placed after the button that precedes it by default.
+    static func merging(_ stored: [ToolbarCommand]) -> [ToolbarCommand] {
+        var result = stored
+        for (index, item) in defaults.enumerated() where !result.contains(where: { $0.command == item.command }) {
+            let previous = defaults[..<index].last { earlier in result.contains { $0.command == earlier.command } }
+            let position = previous.flatMap { earlier in result.firstIndex { $0.command == earlier.command } }.map { $0 + 1 } ?? 0
+            result.insert(item, at: position)
+        }
+        return result
+    }
+
+    /// The display and inserting buttons, the outline and structure, the mdship
+    /// commands, then the preview's placeholders switch and the console.
+    static let defaults: [ToolbarCommand] = {
+        let trailing: [ToolbarAction] = [.placeholders, .console]
+        return ToolbarAction.allCases.filter { !trailing.contains($0) }.map(defaultItem)
+            + MdshipCommand.allCases.map { ToolbarCommand(command: $0.rawValue, icon: $0.defaultIcon, shown: $0 == .update) }
+            + trailing.map(defaultItem)
+    }()
 }
 
 /// Everything in `~/.tychedit/settings.json`.
@@ -97,8 +240,18 @@ struct Settings: Codable, Equatable, Sendable {
         // Commands added in a later version appear, with their default icon,
         // after the ones the file already lists.
         let stored = (try? c.decodeIfPresent([ToolbarCommand].self, forKey: .toolbar)) ?? []
-        let known = stored.filter { MdshipCommand(rawValue: $0.command) != nil }
-        toolbar = known + ToolbarCommand.defaults.filter { item in !known.contains { $0.command == item.command } }
+        let known = stored.compactMap { item -> ToolbarCommand? in
+            guard item.mdshipCommand != nil || item.action != nil else { return nil }
+            var item = item
+            // Every state has an icon, whatever the file says.
+            let defaults = item.defaultIcons
+            if item.alternateIcons.count < defaults.count - 1 {
+                item.alternateIcons += defaults[(item.alternateIcons.count + 1)...]
+            }
+            item.alternateIcons = Array(item.alternateIcons.prefix(defaults.count - 1))
+            return item
+        }
+        toolbar = ToolbarCommand.merging(known)
     }
 }
 
@@ -240,6 +393,23 @@ final class Preferences {
     func toolbarItem(for command: MdshipCommand) -> ToolbarCommand {
         toolbar.first { $0.command == command.rawValue }
             ?? ToolbarCommand(command: command.rawValue, icon: command.defaultIcon, shown: false)
+    }
+
+    func toolbarItem(for action: ToolbarAction) -> ToolbarCommand {
+        toolbar.first { $0.command == action.rawValue } ?? ToolbarCommand.defaultItem(for: action)
+    }
+
+    /// Reorders the buttons of one group; `from` and `to` count within the group.
+    func moveToolbarItems(in group: ToolbarGroup, from source: IndexSet, to destination: Int) {
+        let positions = toolbar.indices.filter { toolbar[$0].group == group }
+        var items = positions.map { toolbar[$0] }
+        let moving = source.map { items[$0] }
+        let before = source.filter { $0 < destination }.count
+        items = items.enumerated().filter { !source.contains($0.offset) }.map(\.element)
+        items.insert(contentsOf: moving, at: min(destination - before, items.count))
+        var updated = toolbar
+        for (position, item) in zip(positions, items) { updated[position] = item }
+        toolbar = updated
     }
 
     // MARK: - The file

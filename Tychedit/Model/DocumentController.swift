@@ -22,6 +22,9 @@ final class DocumentController {
     @ObservationIgnored private var autosaveTimer: Timer?
     @ObservationIgnored private var cascadePoint = NSPoint.zero
     @ObservationIgnored private var consoleWindow: NSWindow?
+    @ObservationIgnored private var consoleCloseObserver: NSObjectProtocol?
+    /// Whether the mdship console is on screen, for the toolbar button.
+    private(set) var isConsoleVisible = false
 
     static var contentTypes: [UTType] {
         [UTType("net.daringfireball.markdown"), UTType(filenameExtension: "md"), .plainText].compactMap { $0 }
@@ -226,9 +229,18 @@ final class DocumentController {
         }
     }
 
+    func toggleConsole() {
+        if let consoleWindow, consoleWindow.isVisible {
+            consoleWindow.close()
+        } else {
+            showConsole()
+        }
+    }
+
     func showConsole() {
         if let consoleWindow {
             consoleWindow.makeKeyAndOrderFront(nil)
+            isConsoleVisible = true
             return
         }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 460),
@@ -251,7 +263,12 @@ final class DocumentController {
             window.center()
         }
         consoleWindow = window
+        consoleCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
+            MainActor.assumeIsolated { DocumentController.shared.isConsoleVisible = false }
+        }
         window.makeKeyAndOrderFront(nil)
+        isConsoleVisible = true
     }
 }
 

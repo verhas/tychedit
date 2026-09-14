@@ -18,6 +18,14 @@ struct StatusMessage: Equatable {
     let date = Date()
 }
 
+/// The last mdship command on the document did not go through.
+struct MdshipFailure: Equatable {
+    /// "Update Placeholders failed", "Validate Links found problems".
+    let title: String
+    /// mdship's first line about it.
+    let message: String
+}
+
 /// One open file in one window: its text, where it lives, and everything
 /// done to it.
 @MainActor
@@ -35,6 +43,8 @@ final class Document: Identifiable {
     @ObservationIgnored private var structurePanel: StructurePanel?
     /// The scanner's, the validator's and mdship's problems, in document order.
     private(set) var problems: [PlaceholderIssue] = []
+    /// Set when the last mdship command failed or reported problems, until the next one succeeds.
+    private(set) var mdshipFailure: MdshipFailure?
     private(set) var wordCount = 0
     private(set) var caret = CaretInfo()
     private(set) var lastSaved: Date?
@@ -538,19 +548,34 @@ final class Document: Identifiable {
         editor.textView.isEditable = false
         Task {
             defer { mdshipActivity = nil }
+            var output = ""
             do {
                 let result = try await MdshipService.shared.run(command, on: url, lines: lines)
+                output = result.output
                 mdshipProblems = result.problems ? MdshipOutput.issues(in: result.output, text: editor.text) : []
                 let summary = result.output.split(separator: "\n").first.map(String.init) ?? "done"
                 statusMessage = StatusMessage(text: "\(command.title): \(summary)", isError: result.problems)
+                mdshipFailure = result.problems ? MdshipFailure(title: "\(command.title) found problems", message: summary) : nil
             } catch {
                 let message = error.localizedDescription
+                output = message
                 mdshipProblems = MdshipOutput.issues(in: message, text: editor.text)
-                statusMessage = StatusMessage(text: "\(command.title) failed: \(message.split(separator: "\n").first ?? "")",
-                                              isError: true)
+                let summary = message.split(separator: "\n").first.map(String.init) ?? ""
+                statusMessage = StatusMessage(text: "\(command.title) failed: \(summary)", isError: true)
+                mdshipFailure = MdshipFailure(title: "\(command.title) failed", message: summary)
                 if case MdshipService.ServiceError.notInstalled = error {
                     DocumentController.shared.offerInstall(message: message)
                 }
+            }
+            // A value with spaces for a short variable reference: mdship names no
+            // line, so point at the references, and offer to fix them.
+            let spaced = VariableMarkerFix.failure(in: output)
+            if let spaced, mdshipProblems.isEmpty {
+                mdshipProblems = PlaceholderScanner.scan(editor.text).variables
+                    .filter { $0.marker == nil && $0.name == spaced.name }
+                    .map { PlaceholderIssue(line: $0.line, range: $0.range,
+                                            message: "mdship: the value of $\(spaced.name), “\(spaced.value)”, contains spaces; use the marker form",
+                                            severity: .error, source: .mdship) }
             }
             // Editable again before the reload: a read-only text view refuses
             // programmatic changes as well as typing.
@@ -562,6 +587,45 @@ final class Document: Identifiable {
             }
             publishProblems()
             updateCaret()
+            if let spaced {
+                // Once this run has finished, so the fix can run the command again.
+                Task { self.offerMarkerFix(spaced, rerunning: command) }
+            }
+        }
+    }
+
+    /// Asks whether to rewrite the short references to a variable whose value
+    /// has spaces in the marker form, and if so does, and runs `command` again.
+    private func offerMarkerFix(_ failure: VariableMarkerFix.Failure, rerunning command: MdshipCommand) {
+        let text = editor.text
+        let fixed = VariableMarkerFix.fix(failure, in: text, variables: PlaceholderScanner.scan(text).variables)
+        guard fixed.count > 0 else { return }
+        let marker = VariableMarkerFix.marker(for: failure.value)
+        let references = fixed.count == 1 ? "the reference" : "the \(fixed.count) references"
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Fix $\(failure.name) automatically?"
+        alert.informativeText = "mdship cannot put “\(failure.value)” after <!--$\(failure.name)-->: the value contains spaces.\n\n"
+            + "Tychedit can rewrite \(references) in this document in the marker form, "
+            + "<!--$\(failure.name)<\(marker)>--><!--\(marker)-->, and run \(command.title) again. Undo takes the change back."
+        alert.addButton(withTitle: "Yes")
+        alert.addButton(withTitle: "No")
+        let apply: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn, self.editor.text == text else { return }
+            self.editor.applyMinimalEdit(fixed.text, actionName: "Marker Form for $\(failure.name)")
+            self.mdshipProblems = []
+            self.mdshipFailure = nil
+            self.publishProblems()
+            self.statusMessage = StatusMessage(
+                text: "Rewrote \(fixed.count) reference\(fixed.count == 1 ? "" : "s") to $\(failure.name) in the marker form", isError: false)
+            self.run(command)
+        }
+        if let window {
+            alert.beginSheetModal(for: window) { response in
+                MainActor.assumeIsolated { apply(response) }
+            }
+        } else {
+            apply(alert.runModal())
         }
     }
 

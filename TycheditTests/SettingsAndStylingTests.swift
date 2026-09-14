@@ -12,9 +12,23 @@ final class SettingsAndStylingTests: XCTestCase {
         XCTAssertEqual(settings.fontSize, 15)
         XCTAssertEqual(settings.lineNumbers, .relative)
         XCTAssertEqual(settings.autosaveInterval, 30, "missing keys take their defaults")
-        XCTAssertEqual(settings.toolbar.first, ToolbarCommand(command: "toc", icon: "star", shown: true))
+        XCTAssertEqual(settings.toolbar.first { $0.command == "toc" }, ToolbarCommand(command: "toc", icon: "star", shown: true))
+        let order = settings.toolbar.map(\.command)
+        XCTAssertLessThan(order.firstIndex(of: "structure")!, order.firstIndex(of: "toc")!,
+                          "buttons missing from the file go where they are by default")
         XCTAssertFalse(settings.toolbar.contains { $0.command == "gone" })
-        XCTAssertEqual(settings.toolbar.count, MdshipCommand.allCases.count, "every command has an entry")
+        XCTAssertEqual(settings.toolbar.count, MdshipCommand.allCases.count + ToolbarAction.allCases.count,
+                       "every button has an entry")
+    }
+
+    func testEveryToolbarStateHasAnIcon() throws {
+        let json = #"{"toolbar": [{"command": "lineNumbers", "icon": "a", "shown": false, "alternateIcons": ["b"]}, {"command": "console", "icon": "t", "shown": true, "alternateIcons": ["x", "y"]}]}"#
+        let settings = try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+        let lines = try XCTUnwrap(settings.toolbar.first { $0.action == .lineNumbers })
+        XCTAssertEqual(lines.icons, ["a", "b", LineNumberMode.relative.icon])
+        XCTAssertFalse(lines.shown)
+        XCTAssertEqual(settings.toolbar.first { $0.action == .console }?.icons, ["t"])
+        XCTAssertEqual(settings.toolbar.first { $0.action == .insertComment }?.icon, "chevron.left.forwardslash.chevron.right")
     }
 
     func testSettingsRoundTrip() throws {

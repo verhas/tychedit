@@ -103,20 +103,31 @@ struct ContextLabel: View {
     }
 }
 
-/// The problems in the document, each one a jump to its place.
+/// The problems in the document, each one a jump to its place, and whether
+/// the last mdship command failed -- which counts even when mdship named no
+/// line for it.
 struct ProblemsMenu: View {
 
     let document: Document
 
     var body: some View {
         let problems = document.problems
-        if problems.isEmpty {
+        let failure = document.mdshipFailure
+        if problems.isEmpty && failure == nil {
             Label("No problems", systemImage: "checkmark.circle")
                 .foregroundStyle(.secondary)
                 .labelStyle(.titleAndIcon)
         } else {
-            let errors = problems.filter { $0.severity == .error }.count
+            let errors = problems.filter { $0.severity == .error }.count + (failure == nil ? 0 : 1)
             Menu {
+                if let failure {
+                    Section(failure.title) {
+                        if !failure.message.isEmpty {
+                            Text(failure.message)
+                        }
+                        Button("Show Console") { DocumentController.shared.showConsole() }
+                    }
+                }
                 let fromMdship = problems.filter { $0.source == .mdship }
                 let fromEditor = problems.filter { $0.source == .editor }
                 if !fromEditor.isEmpty {
@@ -134,13 +145,20 @@ struct ProblemsMenu: View {
                     }
                 }
             } label: {
-                Label(problems.count == 1 ? "1 problem" : "\(problems.count) problems",
+                Label(label(problems: problems.count, failure: failure),
                       systemImage: errors > 0 ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(errors > 0 ? .red : .orange)
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("Placeholder problems found while editing, and what mdship reported last")
+            .help(failure.map { "\($0.title): \($0.message)" }
+                  ?? "Placeholder problems found while editing, and what mdship reported last")
         }
+    }
+
+    private func label(problems: Int, failure: MdshipFailure?) -> String {
+        let count = problems == 1 ? "1 problem" : "\(problems) problems"
+        guard let failure else { return count }
+        return problems == 0 ? failure.title : "\(failure.title) · \(count)"
     }
 }

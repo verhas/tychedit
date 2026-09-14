@@ -51,7 +51,10 @@ line numbers (off, absolute, relative), **Wrap Lines** (long lines wrap at the
 editor's width, or run on with a horizontal scroller), and **Show Preview**
 (the preview pane beside the editor, or the editor alone). The same switches
 are in the View menu, where Show Preview is ⌥⌘P, and all three are remembered
-in `settings.json`. The mdship command buttons sit at the right.
+in `settings.json`. At the right come the inserting buttons, then the outline
+menu, Document Structure, the mdship command buttons, the placeholders switch
+for the preview, and the mdship console switch. Settings ▸ Toolbar chooses which
+buttons appear and their icons (see *Running mdship*).
 
 **One window per file.** Opening a file that is already open brings its window
 forward instead of opening it twice. That holds wherever the request comes from:
@@ -126,7 +129,9 @@ In a SET, ⌃Space also shows a reminder that any variable name is allowed:
 `pattern` and `audit` are the only reserved keys.
 
 **Inserting.** The Placeholder menu and a group of toolbar buttons of their own insert
-- a variable reference `<!--$var<>--><!---->`, with `var` selected (⌥⌘V);
+- a variable reference `<!--$var-->`, for a value without spaces, with `var`
+  selected (⌃⌥⌘V);
+- a variable reference `<!--$var<>--><!---->`, for any value, with `var` selected (⌥⌘V);
 - a comment start `<!--`, with the placeholder names offered (⌘/);
 - a fenced code block with the caret inside, or fences around the selected
   lines (⇧⌥⌘C).
@@ -291,12 +296,28 @@ The **mdship** menu, with the current file saved first:
 After a command that changes the file, the editor shows the result as one
 undoable change: **Undo** takes back what mdship did. Problems mdship reports
 with a line number go into the problems menu. Everything mdship prints is
-collected in **mdship ▸ Show Console** (⇧⌘M), and appears there while the
+collected in the console -- **mdship ▸ Show Console** (⇧⌘M) or the console
+button in the toolbar, both of which also hide it -- and appears there while the
 command is still running, so a long install shows its progress.
 
-**Toolbar buttons.** Settings ▸ Toolbar chooses which mdship commands have a
-toolbar button, in what order, and the icon of each (any SF Symbol name). The
-same icons appear in the mdship menu. **mdship ▸ Restart mdship MCP Server**
+**When a command fails**, the status bar's problems menu says so -- *Update
+Placeholders failed* -- in red, even when mdship names no line. The menu shows
+mdship's message and opens the console, and the failure stays until a later
+command succeeds.
+
+**Values with spaces.** mdship refuses to put a value with spaces after a short
+reference, `<!--$name-->`, since that form's value runs to the end of the line.
+When it stops for that reason, the references are underlined, and Tychedit asks
+whether to fix them. *Yes* rewrites every short reference to the variable in the
+document as `<!--$name<>--><!---->` -- with the shortest marker whose closing
+comment does not occur in the value -- and runs the command again. The old
+value goes (a value in backticks stays, so mdship keeps the backticks); Undo
+takes the change back.
+
+**Toolbar buttons.** Settings ▸ Toolbar chooses which buttons the toolbar has,
+their order within each group, and the icon of each (any SF Symbol name). A
+button that shows a state -- line numbers, wrapping, the preview -- has an icon
+for each state. The mdship commands' icons also appear in the mdship menu. **mdship ▸ Restart mdship MCP Server**
 stops the server; the next command starts a fresh one.
 
 **How it talks to mdship.** Tychedit starts one `mdship mcp` server on first use
@@ -330,7 +351,8 @@ saves first and can undo.
 | Shift Right / Left                           | ⌘] / ⌘[                  |
 | Move Line Up / Down                          | ⌥⌘[ / ⌥⌘]                |
 | Duplicate Line / Delete Line                 | ⌘D / ⇧⌘K or ⌘⌫           |
-| Insert Variable Reference / Comment / Code Block | ⌥⌘V / ⌘/ / ⇧⌥⌘C      |
+| Insert Variable Reference / with Spaces      | ⌃⌥⌘V / ⌥⌘V               |
+| Insert Comment / Code Block                  | ⌘/ / ⇧⌥⌘C                |
 | Document Structure                           | ⌥⌘O                      |
 | mdship Update / Console                      | ⇧⌘U / ⇧⌘M                |
 | Fold / Unfold / Fold All / Unfold All        | ⌥⌘← / ⌥⌘→ / ⌥⇧⌘← / ⌥⇧⌘→  |
