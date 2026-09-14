@@ -159,6 +159,8 @@ final class EditorController: NSObject {
         textView.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: attributes))
         replacingEverything = false
         cachedLineIndex = nil
+        // Sized for this text now, not on the first keystroke.
+        gutter.updateThickness()
         textView.undoManager?.removeAllActions()
         textView.setSelectedRange(NSRange(location: 0, length: 0))
         textView.scrollRangeToVisible(NSRange(location: 0, length: 0))

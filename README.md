@@ -180,9 +180,11 @@ The strip left of the text holds, from left to right:
   where committed lines were deleted. It is compared with `git show HEAD:file`
   when the file opens and whenever its window becomes active, so a commit made
   in a terminal or in Diptych shows up.
-- **line numbers**, switched in **View ▸ Line Numbers** or Settings ▸ Editing:
-  off, absolute (1, 2, 3…), or relative to the caret as in vi, where the
-  caret's own line shows its absolute number.
+- **line numbers**: off, absolute (1, 2, 3…), or relative to the caret as in
+  vi, where the caret's own line shows its absolute number. The line-numbers
+  button at the left of the toolbar steps through the three; **View ▸ Line
+  Numbers** and Settings ▸ Editing set them too. The gutter keeps room for three
+  digits, so it does not change width while a document under 1,000 lines is edited.
 - **fold chevrons.**
 
 Folding works on sections and placeholders:

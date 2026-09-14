@@ -33,7 +33,9 @@ final class EditorGutter: NSRulerView {
     @MainActor
     private var numbersWidth: CGFloat {
         guard let controller, Preferences.shared.lineNumbers != .off else { return 0 }
-        let digits = max(2, String(controller.lineIndex.count).count)
+        // Room for three digits at least, so a document under 1,000 lines
+        // never changes the gutter's width while it is being typed.
+        let digits = max(3, String(controller.lineIndex.count).count)
         let sample = NSAttributedString(string: String(repeating: "8", count: digits),
                                         attributes: [.font: EditorGutter.numberFont])
         return ceil(sample.size().width) + 6
@@ -50,9 +52,15 @@ final class EditorGutter: NSRulerView {
     @MainActor
     func updateThickness() {
         let wanted = currentThickness
-        if abs(ruleThickness - wanted) > 0.5 {
+        if abs(ruleThickness - wanted) > 0.5, let scrollView {
             ruleThickness = wanted
-            scrollView?.tile()
+            scrollView.tile()
+            // The text moves sideways: draw everything in the scroll view again,
+            // or what was on screen before the move stays behind at the edge.
+            scrollView.needsDisplay = true
+            for view in [scrollView.contentView, scrollView.documentView].compactMap({ $0 }) {
+                view.needsDisplay = true
+            }
         }
         needsDisplay = true
     }
