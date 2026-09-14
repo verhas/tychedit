@@ -288,6 +288,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        editorDocument.closeStructure()
         DocumentController.shared.windowClosed(for: editorDocument)
     }
 

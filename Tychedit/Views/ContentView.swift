@@ -52,8 +52,35 @@ struct ContentView: View {
                 }
                 .help(shown ? "Hide the preview (⌥⌘P)" : "Show the preview (⌥⌘P)")
             }
+            // Inserting mdship and Markdown syntax, a group of its own.
+            ToolbarItemGroup {
+                Button {
+                    document.editor.insertVariableReference()
+                } label: {
+                    Label("Variable Reference", systemImage: "dollarsign.square")
+                }
+                .help("Insert a variable reference <!--$var<>--><!----> (⌥⌘V)")
+                Button {
+                    document.editor.insertCommentStart()
+                } label: {
+                    Label("Comment", systemImage: "text.bubble")
+                }
+                .help("Start a comment or placeholder <!-- (⌘/)")
+                Button {
+                    document.editor.insertCodeBlock()
+                } label: {
+                    Label("Code Block", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .help("Insert a fenced code block, or fence the selected lines (⇧⌥⌘C)")
+            }
             ToolbarItemGroup {
                 OutlineMenu(document: document)
+                Button {
+                    document.showStructure()
+                } label: {
+                    Label("Structure", systemImage: "list.bullet.rectangle")
+                }
+                .help("Rearrange the document by its headings (⌥⌘O)")
                 // The mdship commands chosen in Settings ▸ Toolbar, with their icons.
                 ForEach(Preferences.shared.toolbar.filter(\.shown)) { item in
                     if let command = MdshipCommand(rawValue: item.command) {

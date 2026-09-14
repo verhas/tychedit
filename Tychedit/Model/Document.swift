@@ -29,6 +29,10 @@ final class Document: Identifiable {
     private(set) var fileURL: URL?
     private(set) var isDirty = false
     private(set) var rendered = RenderResult.empty
+    /// The text `rendered` was made from.
+    @ObservationIgnored private(set) var renderedText = ""
+    /// The headings window, once opened.
+    @ObservationIgnored private var structurePanel: StructurePanel?
     /// The scanner's, the validator's and mdship's problems, in document order.
     private(set) var problems: [PlaceholderIssue] = []
     private(set) var wordCount = 0
@@ -165,6 +169,7 @@ final class Document: Identifiable {
             }.value
             guard !Task.isCancelled, let self else { return }
             self.rendered = analysis.render
+            self.renderedText = text
             self.references = analysis.validation.references
             self.wordCount = analysis.words
             // Any edit since the snapshot cancels this task, so the ranges are current.
@@ -179,7 +184,20 @@ final class Document: Identifiable {
                 self.apply(target)
             }
             self.syncPreviewScroll()
+            self.structurePanel?.refresh()
         }
+    }
+
+    /// Opens the window showing only the headings, to rearrange the document by.
+    func showStructure() {
+        let panel = structurePanel ?? StructurePanel(document: self)
+        structurePanel = panel
+        panel.show()
+    }
+
+    func closeStructure() {
+        structurePanel?.close()
+        structurePanel = nil
     }
 
     private struct Analysis: Sendable {

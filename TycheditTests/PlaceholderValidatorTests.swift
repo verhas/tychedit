@@ -352,3 +352,43 @@ final class PlaceholderValidatorTests: XCTestCase {
         XCTAssertNil(reference("<!--SET\nappName: x\n-->\nA <!--$appName-->x|y"))
     }
 }
+
+final class ImportAndSetTests: XCTestCase {
+
+    private func messages(_ text: String) -> [String] {
+        PlaceholderValidator.validate(text: text, scan: PlaceholderScanner.scan(text), documentURL: nil).issues.map(\.message)
+    }
+
+    func testImportNeedsAFormatForUnknownExtensions() {
+        XCTAssertTrue(messages("<!--IMPORT\nname: cfg\nfrom: \"notes.md\"\n-->\n")
+            .contains { $0.contains("Cannot determine file format from extension '.md'") })
+        XCTAssertFalse(messages("<!--IMPORT\nname: cfg\nfrom: \"notes.md\"\nformat: yaml\n-->\n")
+            .contains { $0.contains("Cannot determine file format") })
+        XCTAssertFalse(messages("<!--IMPORT\nname: cfg\nfrom: \"settings.YML\"\n-->\n")
+            .contains { $0.contains("Cannot determine file format") })
+    }
+
+    private func labels(_ textWithCaret: String, explicit: Bool = true) -> [String] {
+        let caret = (textWithCaret as NSString).range(of: "|").location
+        let text = textWithCaret.replacingOccurrences(of: "|", with: "")
+        return CompletionProvider.completions(in: text, at: caret, documentURL: nil, explicit: explicit)?.items.map(\.label) ?? []
+    }
+
+    func testSetOffersItsReservedKeysAndSaysAnyNameWorks() {
+        XCTAssertEqual(labels("<!--SET\n|\n-->"), ["pattern", "audit", "any-name: value"])
+        XCTAssertEqual(labels("<!--SET\npattern:\n|\n-->"), ["audit", "any-name: value"])
+    }
+
+    /// The reported sequence: pattern written, its line deleted, Control-Space.
+    func testDeletedKeyIsOfferedAgain() {
+        XCTAssertEqual(labels("<!--SET\n|\n\n-->"), ["pattern", "audit", "any-name: value"])
+        XCTAssertEqual(labels("<!--SET\n\n|\n-->"), ["pattern", "audit", "any-name: value"])
+    }
+
+    /// While the comment is not closed yet, keys of a placeholder further down
+    /// must not count as present.
+    func testLaterPlaceholdersDoNotCount() {
+        XCTAssertEqual(labels("<!--SET\n|\n\nText.\n\n<!--SET\npattern:\n  x: 'a(b)'\n-->\n"),
+                       ["pattern", "audit", "any-name: value"])
+    }
+}
