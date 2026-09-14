@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Unsandboxed, like Diptych. A markdown file refers to images and, through
+	     mdship placeholders, to other files anywhere in the project; sandboxed,
+	     the preview could only show what sits in folders the user picked by
+	     hand. The later mdship integration also has to run an external process. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>

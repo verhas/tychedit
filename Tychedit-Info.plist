@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Merged into the generated Info.plist (GENERATE_INFOPLIST_FILE stays on).
+     Only what the INFOPLIST_KEY_ build settings cannot express lives here:
+     the document types, which are what put Tychedit into Finder's and
+     Diptych's "Open With" menu and let `open -a Tychedit file.md` work.
+
+     Kept outside the Tychedit folder on purpose: that folder is a synchronized
+     group, and a plist inside it would also be copied as a resource, which
+     Xcode rejects as two commands producing Info.plist. -->
+<dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Markdown Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<!-- Alternate: offered in Open With, never silently made the default
+			     app for .md files. -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>net.daringfireball.markdown</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Plain Text Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
