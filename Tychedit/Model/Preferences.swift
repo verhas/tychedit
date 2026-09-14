@@ -70,6 +70,7 @@ struct Settings: Codable, Equatable, Sendable {
     var recentFilesLimit = 10
     var lineNumbers = LineNumberMode.off
     var toolbar = ToolbarCommand.defaults
+    var find = FindOptions()
 
     init() {}
 
@@ -88,6 +89,7 @@ struct Settings: Codable, Equatable, Sendable {
         reflowWidth = try c.decodeIfPresent(Int.self, forKey: .reflowWidth) ?? d.reflowWidth
         recentFilesLimit = try c.decodeIfPresent(Int.self, forKey: .recentFilesLimit) ?? d.recentFilesLimit
         lineNumbers = (try? c.decodeIfPresent(LineNumberMode.self, forKey: .lineNumbers)) ?? d.lineNumbers
+        find = (try? c.decodeIfPresent(FindOptions.self, forKey: .find)) ?? d.find
         // Commands added in a later version appear, with their default icon,
         // after the ones the file already lists.
         let stored = (try? c.decodeIfPresent([ToolbarCommand].self, forKey: .toolbar)) ?? []
@@ -214,6 +216,11 @@ final class Preferences {
     var toolbar: [ToolbarCommand] {
         get { settings.toolbar }
         set { settings.toolbar = newValue }
+    }
+    /// The find bar's case, whole-word and regex switches.
+    var findOptions: FindOptions {
+        get { settings.find }
+        set { settings.find = newValue }
     }
 
     func toolbarItem(for command: MdshipCommand) -> ToolbarCommand {

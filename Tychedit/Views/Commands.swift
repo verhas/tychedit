@@ -30,17 +30,17 @@ struct FindCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .textEditing) {
             Menu("Find") {
-                Button("Find…") { document?.editor.performFind(.showFindInterface) }
+                Button("Find…") { document?.find.show(replace: false) }
                     .keyboardShortcut("f")
-                Button("Find and Replace…") { document?.editor.performFind(.showReplaceInterface) }
-                    .keyboardShortcut("f", modifiers: [.command, .option])
-                Button("Find Next") { document?.editor.performFind(.nextMatch) }
+                Button("Find and Replace…") { document?.find.show(replace: true) }
+                    .keyboardShortcut("r")
+                Button("Find Next") { document?.find.next() }
                     .keyboardShortcut("g")
-                Button("Find Previous") { document?.editor.performFind(.previousMatch) }
+                Button("Find Previous") { document?.find.previous() }
                     .keyboardShortcut("g", modifiers: [.command, .shift])
-                Button("Use Selection for Find") { document?.editor.performFind(.setSearchString) }
+                Button("Use Selection for Find") { document?.find.useSelectionForFind() }
                     .keyboardShortcut("e")
-                Button("Replace All") { document?.editor.performFind(.replaceAll) }
+                Button("Replace All") { document?.find.replaceAll() }
                 Button("Jump to Selection") { document?.editor.textView.centerSelectionInVisibleArea(nil) }
                     .keyboardShortcut("j")
             }

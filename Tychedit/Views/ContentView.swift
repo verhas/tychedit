@@ -10,8 +10,14 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             HSplitView {
-                HostedView(view: document.editor.scrollView)
-                    .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    if document.find.isVisible {
+                        FindBar(find: document.find)
+                        Divider()
+                    }
+                    HostedView(view: document.editor.scrollView)
+                }
+                .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
                 HostedView(view: document.preview.webView)
                     .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
             }

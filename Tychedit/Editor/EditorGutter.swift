@@ -10,6 +10,10 @@ import AppKit
 final class EditorGutter: NSRulerView {
 
     private weak var controller: EditorController?
+    @MainActor private lazy var peek = ChangePeek()
+    private var peekTask: Task<Void, Never>?
+    /// What the peek currently shows, so moving within one line does not redraw it.
+    private var peekKey: String?
 
     private static let barX: CGFloat = 2
     private static let barWidth: CGFloat = 3
@@ -22,6 +26,9 @@ final class EditorGutter: NSRulerView {
         super.init(scrollView: scrollView, orientation: .verticalRuler)
         clientView = controller.textView
         ruleThickness = currentThickness
+        // Views no longer clip their drawing by default; the gutter must, or a
+        // redraw rectangle larger than it paints over the view next to it.
+        clipsToBounds = true
     }
 
     required init(coder: NSCoder) { fatalError("not used") }
@@ -175,8 +182,9 @@ final class EditorGutter: NSRulerView {
                 drawDeletion(at: last.bottom)
             }
 
+            let area = rect.intersection(bounds)
             NSColor.separatorColor.withAlphaComponent(0.4).setFill()
-            NSRect(x: bounds.maxX - 1, y: rect.minY, width: 1, height: rect.height).fill()
+            NSRect(x: bounds.maxX - 1, y: area.minY, width: 1, height: area.height).fill()
         }
     }
 
@@ -218,6 +226,126 @@ final class EditorGutter: NSRulerView {
         path.lineJoinStyle = .round
         (folded ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor).setStroke()
         path.stroke()
+    }
+
+    // MARK: Hovering over changes
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    /// What is under the pointer: a deletion wedge, or a changed line.
+    @MainActor
+    private func change(at point: NSPoint) -> (hunk: LineChanges.Hunk, line: Int, deletion: Bool, top: CGFloat)? {
+        guard let controller else { return nil }
+        let changes = controller.lineChanges
+        guard !changes.hunks.isEmpty else { return nil }
+        let lines = visibleLines()
+        // The wedge sits on the boundary above a line; it wins within a few points of it.
+        for line in lines where abs(point.y - line.top) <= 4 {
+            if let hunk = changes.hunk(deletedBefore: line.number) { return (hunk, line.number, true, line.top) }
+        }
+        if let last = lines.last, abs(point.y - last.bottom) <= 4,
+           let hunk = changes.hunk(deletedBefore: last.number + 1) {
+            return (hunk, last.number + 1, true, last.bottom)
+        }
+        guard let line = lines.first(where: { point.y >= $0.top && point.y < $0.bottom }),
+              let hunk = changes.hunk(containing: line.number) else { return nil }
+        return (hunk, line.number, false, line.top)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        MainActor.assumeIsolated {
+            let point = convert(event.locationInWindow, from: nil)
+            // The change bar and the numbers beside it; the chevrons are for folding.
+            guard point.x < chevronsX, let found = change(at: point) else {
+                hidePeek()
+                return
+            }
+            let key = "\(found.hunk.newStart)-\(found.line)-\(found.deletion)"
+            guard key != peekKey else { return }
+            peekKey = key
+            peekTask?.cancel()
+            let delay: Duration = peek.isVisible ? .zero : .milliseconds(350)
+            peekTask = Task { [weak self] in
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled, let self, let window = self.window else { return }
+                let rowRect = NSRect(x: 0, y: found.top, width: self.bounds.width, height: 1)
+                let anchor = window.convertToScreen(self.convert(rowRect, to: nil))
+                self.peek.show(found.hunk, hoveredLine: found.deletion ? nil : found.line,
+                               deletionOnly: found.deletion, beside: anchor, in: window)
+            }
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        MainActor.assumeIsolated { hidePeek() }
+    }
+
+    @MainActor
+    func hidePeek() {
+        peekTask?.cancel()
+        peekKey = nil
+        peek.hide()
+    }
+
+    // MARK: Reverting
+
+    /// Right-click on a changed line: put it back as it was committed.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        hidePeek()
+        let point = convert(event.locationInWindow, from: nil)
+        guard let found = change(at: point) else { return nil }
+        let menu = NSMenu()
+        if found.deletion {
+            let count = found.hunk.oldLines.count - found.hunk.newLines.count
+            menu.addItem(item(count == 1 ? "Restore Deleted Line" : "Restore \(count) Deleted Lines",
+                              #selector(restoreDeleted(_:)), found))
+        } else {
+            let isAdded = found.line - found.hunk.newStart >= found.hunk.oldLines.count
+            menu.addItem(item(isAdded ? "Remove This Added Line" : "Revert This Line", #selector(revertLine(_:)), found))
+            if found.hunk.newLines.count > 1 || found.hunk.oldLines.count != found.hunk.newLines.count {
+                let first = found.hunk.newStart + 1
+                let last = found.hunk.newStart + max(found.hunk.newLines.count, 1)
+                menu.addItem(item(first == last ? "Revert Whole Change (line \(first))" : "Revert Whole Change (lines \(first)–\(last))",
+                                  #selector(revertHunk(_:)), found))
+            }
+        }
+        return menu
+    }
+
+    private final class ChangeTarget: NSObject {
+        let hunk: LineChanges.Hunk
+        let line: Int
+        init(hunk: LineChanges.Hunk, line: Int) {
+            self.hunk = hunk
+            self.line = line
+        }
+    }
+
+    private func item(_ title: String, _ action: Selector, _ found: (hunk: LineChanges.Hunk, line: Int, deletion: Bool, top: CGFloat)) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.representedObject = ChangeTarget(hunk: found.hunk, line: found.line)
+        return item
+    }
+
+    @objc private func revertLine(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? ChangeTarget else { return }
+        MainActor.assumeIsolated { controller?.revertLine(target.line, of: target.hunk) }
+    }
+
+    @objc private func revertHunk(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? ChangeTarget else { return }
+        MainActor.assumeIsolated { controller?.revertHunk(target.hunk) }
+    }
+
+    @objc private func restoreDeleted(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? ChangeTarget else { return }
+        MainActor.assumeIsolated { controller?.restoreDeletedLines(of: target.hunk) }
     }
 
     // MARK: Clicking
