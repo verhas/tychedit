@@ -17,7 +17,9 @@ final class FindController {
     var query = "" {
         didSet { if query != oldValue { search(fromOrigin: true) } }
     }
-    var replacement = ""
+    var replacement = "" {
+        didSet { if replacement != oldValue { checkReplacement() } }
+    }
 
     var options: FindOptions {
         didSet {
@@ -30,6 +32,8 @@ final class FindController {
     private(set) var matches: [NSRange] = []
     private(set) var currentIndex: Int?
     private(set) var problem: String?
+    /// The replacement refers to groups the expression does not have.
+    private(set) var replacementProblem: String?
     private(set) var message: String?
 
     /// Changed to move keyboard focus into the bar.
@@ -111,6 +115,7 @@ final class FindController {
             editor.setFindHighlights([], current: nil)
             return
         }
+        checkReplacement()
         matches = TextSearch.matches(of: expression!, in: editor.text)
         if moveSelection, isVisible {
             select(matches.firstIndex { $0.location >= origin } ?? (matches.isEmpty ? nil : 0))
@@ -177,10 +182,18 @@ final class FindController {
 
     // MARK: - Replacing
 
+    private func checkReplacement() {
+        guard options.regex, let expression else {
+            replacementProblem = nil
+            return
+        }
+        replacementProblem = TextSearch.templateProblem(replacement, groups: expression.numberOfCaptureGroups)
+    }
+
     /// Replaces the selected match and moves on to the next one. When the
     /// selection is not a match, the first step only finds one.
     func replaceCurrent() {
-        guard let editor, let expression else { return NSSound.beep() }
+        guard let editor, let expression, replacementProblem == nil else { return NSSound.beep() }
         let selection = editor.selectedRange
         guard matches.contains(selection),
               let replaced = TextSearch.replacement(for: selection, in: editor.text, expression: expression,
@@ -203,7 +216,7 @@ final class FindController {
     func replaceAll() {
         guard let editor else { return }
         if expression == nil { search(fromOrigin: false) }
-        guard let expression, !matches.isEmpty else { return NSSound.beep() }
+        guard let expression, !matches.isEmpty, replacementProblem == nil else { return NSSound.beep() }
         let result = TextSearch.replacingAll(in: editor.text, expression: expression, template: replacement, options: options)
         editor.applyMinimalEdit(result.text, actionName: "Replace All")
         matches = TextSearch.matches(of: expression, in: editor.text)

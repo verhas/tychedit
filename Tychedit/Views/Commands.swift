@@ -218,6 +218,14 @@ struct ViewCommands: Commands {
             }
             .pickerStyle(.menu)
 
+            Toggle("Wrap Lines", isOn: Binding(
+                get: { Preferences.shared.wrapLines },
+                set: { Preferences.shared.wrapLines = $0 }))
+            Toggle("Show Preview", isOn: Binding(
+                get: { Preferences.shared.showPreview },
+                set: { Preferences.shared.showPreview = $0 }))
+                .keyboardShortcut("p", modifiers: [.command, .option])
+
             Toggle("Sync Preview Scrolling", isOn: Binding(
                 get: { Preferences.shared.syncScrolling },
                 set: { Preferences.shared.syncScrolling = $0 }))

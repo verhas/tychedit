@@ -49,7 +49,15 @@ struct FindBar: View {
 
                 Button(find.showsReplace ? "Hide Replace" : "Replace") { find.showsReplace.toggle() }
                     .buttonStyle(.link)
-                Button("Done") { find.close() }
+                Button {
+                    find.close()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Close the find bar (Escape)")
             }
 
             if find.showsReplace {
@@ -63,15 +71,18 @@ struct FindBar: View {
                         .onSubmit { find.replaceCurrent() }
                     Button("Replace") { find.replaceCurrent() }
                         .help("Replace the selected match and find the next (Return in this field)")
+                        .disabled(find.replacementProblem != nil)
                     Button("All") { find.replaceAll() }
                         .help("Replace every match; one Undo takes it back")
+                        .disabled(find.replacementProblem != nil)
                 }
             }
 
-            if let text = find.problem ?? find.message {
+            let error = find.problem ?? (find.showsReplace ? find.replacementProblem : nil)
+            if let text = error ?? find.message {
                 Text(text)
                     .font(.caption)
-                    .foregroundStyle(find.problem == nil ? Color.secondary : Color.red)
+                    .foregroundStyle(error == nil ? Color.secondary : Color.red)
                     .padding(.leading, 22)
             }
         }

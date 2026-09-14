@@ -80,6 +80,7 @@ final class Document: Identifiable {
             guard let self, self.isMarkdown else { return nil }
             return CompletionProvider.completions(in: self.editor.text, at: offset, documentURL: self.fileURL, explicit: explicit)
         }
+        editor.setWrapsLines(preferences.wrapLines)
         preview.openLink = { [weak self] reference in
             guard let self else { return }
             DocumentController.shared.follow(reference, from: self)
@@ -119,6 +120,7 @@ final class Document: Identifiable {
         editor.setFontSize(preferences.fontSize)
         preview.setFontSize(preferences.fontSize + 1)
         preview.setPlaceholdersVisible(preferences.showPlaceholders)
+        editor.setWrapsLines(preferences.wrapLines)
         editor.gutter.updateThickness()
     }
 

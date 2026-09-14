@@ -108,3 +108,14 @@ final class FindAndRevertTests: XCTestCase {
         XCTAssertEqual(try apply(ChangeRevert.revertLine(1, of: hunk, in: current), to: current), "one\r\ntwo\r\nthree\r\n")
     }
 }
+
+final class ReplacementTemplateTests: XCTestCase {
+
+    func testGroupsTheExpressionDoesNotHave() {
+        XCTAssertEqual(TextSearch.templateProblem("x$1", groups: 0), "The replacement uses $1, but the expression has no capturing groups")
+        XCTAssertEqual(TextSearch.templateProblem("$1 $3", groups: 2), "The replacement uses $3, but the expression has only 2 capturing groups")
+        XCTAssertEqual(TextSearch.templateProblem("$2", groups: 1), "The replacement uses $2, but the expression has only 1 capturing group")
+        XCTAssertNil(TextSearch.templateProblem("$0 $1 $2", groups: 2), "$0 is the whole match")
+        XCTAssertNil(TextSearch.templateProblem("\\$5 costs $", groups: 0), "an escaped dollar and a lone dollar are text")
+    }
+}

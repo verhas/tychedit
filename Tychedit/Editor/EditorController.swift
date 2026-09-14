@@ -14,6 +14,7 @@ final class EditorController: NSObject {
 
     let scrollView: NSScrollView
     let textView: EditorTextView
+    let clipView = EditorClipView()
 
     /// The user changed the text. Not called for `setText`.
     var onTextChange: ((String) -> Void)?
@@ -43,6 +44,7 @@ final class EditorController: NSObject {
     var hiddenRanges: [NSRange] = []
     /// While the whole text is replaced, edits do not unfold anything.
     var replacingEverything = false
+    private var wrapConfigured = false
     var findHighlights: [NSRange] = []
     var currentFindMatch: NSRange?
 
@@ -113,6 +115,8 @@ final class EditorController: NSObject {
         textView.typingAttributes = attributes
         textView.delegate = self
 
+        scrollView.contentView = clipView
+        clipView.onWidthChange = { [weak self] in self?.fitTextWidth() }
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -130,6 +134,54 @@ final class EditorController: NSObject {
         NotificationCenter.default.addObserver(
             self, selector: #selector(boundsDidChange(_:)),
             name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+    }
+
+    // MARK: - Wrapping
+
+    /// Wrapped lines fit the visible width; unwrapped lines run as long as they
+    /// are, with a horizontal scroller.
+    func setWrapsLines(_ wraps: Bool) {
+        guard let container = textView.textContainer, wraps != clipView.wrapsLines || !wrapConfigured else { return }
+        wrapConfigured = true
+        clipView.wrapsLines = wraps
+        scrollView.hasHorizontalScroller = !wraps
+        if wraps {
+            textView.isHorizontallyResizable = false
+            textView.autoresizingMask = [.width]
+            container.widthTracksTextView = true
+        } else {
+            container.widthTracksTextView = false
+            container.size = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            textView.isHorizontallyResizable = true
+            textView.autoresizingMask = []
+        }
+        fitTextWidth()
+        let origin = scrollView.contentView.bounds.origin
+        scrollView.contentView.scroll(to: NSPoint(x: -clipView.contentInsets.left, y: origin.y))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        gutter.needsDisplay = true
+    }
+
+    /// Sizes the text view to the width it may use: exactly the visible width
+    /// while wrapping, at least that much otherwise.
+    func fitTextWidth() {
+        let insets = clipView.contentInsets
+        let visibleWidth = max(0, clipView.bounds.width - insets.left - insets.right)
+        // Resizing the clip view -- hiding the preview, for one -- can move the
+        // text view itself sideways inside it, which draws the text under the gutter.
+        if textView.frame.origin.x != 0 {
+            textView.setFrameOrigin(NSPoint(x: 0, y: textView.frame.origin.y))
+        }
+        if clipView.wrapsLines {
+            clipView.pinHorizontalOrigin()
+            textView.minSize = NSSize(width: 0, height: 0)
+            if abs(textView.frame.width - visibleWidth) > 0.5 {
+                textView.setFrameSize(NSSize(width: visibleWidth, height: textView.frame.height))
+            }
+        } else {
+            textView.minSize = NSSize(width: visibleWidth, height: 0)
+            textView.sizeToFit()
+        }
     }
 
     private static func font(size: Double) -> NSFont {
@@ -331,7 +383,8 @@ final class EditorController: NSObject {
         let comfort = visible.insetBy(dx: 0, dy: visible.height * 0.15)
         if comfort.contains(NSPoint(x: comfort.midX, y: rect.midY)) { return }
         let y = max(0, min(rect.midY - visible.height / 2, textView.frame.height - visible.height))
-        scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+        // Keep the horizontal position: it is not zero, it is minus the gutter's width.
+        scrollView.contentView.scroll(to: NSPoint(x: visible.origin.x, y: y))
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 

@@ -40,6 +40,30 @@ enum TextSearch {
         }
     }
 
+    /// Why a regex replacement cannot work: it refers to a group the expression
+    /// does not have. NSRegularExpression would put an empty string there
+    /// without a word, which is how a replacement silently loses text.
+    static func templateProblem(_ template: String, groups: Int) -> String? {
+        let chars = Array(template)
+        var i = 0
+        var missing: [Int] = []
+        while i < chars.count {
+            if chars[i] == "\\" {
+                i += 2
+                continue
+            }
+            if chars[i] == "$", i + 1 < chars.count, let digit = chars[i + 1].wholeNumberValue {
+                if digit > groups { missing.append(digit) }
+                i += 2
+                continue
+            }
+            i += 1
+        }
+        guard let first = missing.first else { return nil }
+        let have = groups == 0 ? "no capturing groups" : groups == 1 ? "only 1 capturing group" : "only \(groups) capturing groups"
+        return "The replacement uses $\(first), but the expression has \(have)"
+    }
+
     /// Non-empty matches, in order; at most `limit`.
     static func matches(of expression: NSRegularExpression, in text: String, limit: Int = 50_000) -> [NSRange] {
         var ranges: [NSRange] = []

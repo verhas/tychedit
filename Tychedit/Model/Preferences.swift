@@ -71,6 +71,8 @@ struct Settings: Codable, Equatable, Sendable {
     var lineNumbers = LineNumberMode.off
     var toolbar = ToolbarCommand.defaults
     var find = FindOptions()
+    var wrapLines = true
+    var showPreview = true
 
     init() {}
 
@@ -90,6 +92,8 @@ struct Settings: Codable, Equatable, Sendable {
         recentFilesLimit = try c.decodeIfPresent(Int.self, forKey: .recentFilesLimit) ?? d.recentFilesLimit
         lineNumbers = (try? c.decodeIfPresent(LineNumberMode.self, forKey: .lineNumbers)) ?? d.lineNumbers
         find = (try? c.decodeIfPresent(FindOptions.self, forKey: .find)) ?? d.find
+        wrapLines = try c.decodeIfPresent(Bool.self, forKey: .wrapLines) ?? d.wrapLines
+        showPreview = try c.decodeIfPresent(Bool.self, forKey: .showPreview) ?? d.showPreview
         // Commands added in a later version appear, with their default icon,
         // after the ones the file already lists.
         let stored = (try? c.decodeIfPresent([ToolbarCommand].self, forKey: .toolbar)) ?? []
@@ -216,6 +220,16 @@ final class Preferences {
     var toolbar: [ToolbarCommand] {
         get { settings.toolbar }
         set { settings.toolbar = newValue }
+    }
+    /// Long lines wrap at the editor's width, or run on with a horizontal scroller.
+    var wrapLines: Bool {
+        get { settings.wrapLines }
+        set { settings.wrapLines = newValue }
+    }
+    /// The preview pane beside the editor.
+    var showPreview: Bool {
+        get { settings.showPreview }
+        set { settings.showPreview = newValue }
     }
     /// The find bar's case, whole-word and regex switches.
     var findOptions: FindOptions {

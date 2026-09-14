@@ -62,6 +62,7 @@ final class EditorGutter: NSRulerView {
         if abs(ruleThickness - wanted) > 0.5, let scrollView {
             ruleThickness = wanted
             scrollView.tile()
+            controller?.fitTextWidth()
             // The text moves sideways: draw everything in the scroll view again,
             // or what was on screen before the move stays behind at the edge.
             scrollView.needsDisplay = true
