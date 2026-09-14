@@ -22,85 +22,20 @@ struct ContentView: View {
             StatusBar(document: document)
         }
         .toolbar {
-            // Editor display, on its own at the leading side, apart from the mdship commands.
-            ToolbarItem(placement: .navigation) {
-                let mode = Preferences.shared.lineNumbers
-                Button {
-                    Preferences.shared.lineNumbers = mode.next
-                } label: {
-                    Label(mode.title, systemImage: mode.icon)
-                }
-                .help("\(mode.title) — click for \(mode.next.title.lowercased())")
-            }
-            ToolbarItem(placement: .navigation) {
-                let wraps = Preferences.shared.wrapLines
-                Button {
-                    Preferences.shared.wrapLines.toggle()
-                } label: {
-                    Label(wraps ? "Wrap Lines" : "Don’t Wrap Lines",
-                          systemImage: wraps ? "arrow.turn.down.left" : "arrow.right.to.line")
-                }
-                .help(wraps ? "Long lines wrap in the editor — click to let them run on"
-                            : "Long lines run on in the editor — click to wrap them")
-            }
-            ToolbarItem(placement: .navigation) {
-                let shown = Preferences.shared.showPreview
-                Button {
-                    Preferences.shared.showPreview.toggle()
-                } label: {
-                    Label(shown ? "Hide Preview" : "Show Preview", systemImage: shown ? "sidebar.right" : "rectangle")
-                }
-                .help(shown ? "Hide the preview (⌥⌘P)" : "Show the preview (⌥⌘P)")
-            }
-            // Inserting mdship and Markdown syntax, a group of its own.
-            ToolbarItemGroup {
-                Button {
-                    document.editor.insertVariableReference()
-                } label: {
-                    Label("Variable Reference", systemImage: "dollarsign.square")
-                }
-                .help("Insert a variable reference <!--$var<>--><!----> (⌥⌘V)")
-                Button {
-                    document.editor.insertCommentStart()
-                } label: {
-                    Label("Comment", systemImage: "text.bubble")
-                }
-                .help("Start a comment or placeholder <!-- (⌘/)")
-                Button {
-                    document.editor.insertCodeBlock()
-                } label: {
-                    Label("Code Block", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
-                .help("Insert a fenced code block, or fence the selected lines (⇧⌥⌘C)")
+            // Editor display, at the leading side; inserting, and the document
+            // and mdship buttons, each a group of its own. Settings ▸ Toolbar
+            // chooses the buttons and their icons.
+            ToolbarItemGroup(placement: .navigation) {
+                ForEach(toolbarItems(in: .view)) { item in toolbarButton(item) }
             }
             ToolbarItemGroup {
-                OutlineMenu(document: document)
-                Button {
-                    document.showStructure()
-                } label: {
-                    Label("Structure", systemImage: "list.bullet.rectangle")
-                }
-                .help("Rearrange the document by its headings (⌥⌘O)")
-                // The mdship commands chosen in Settings ▸ Toolbar, with their icons.
-                ForEach(Preferences.shared.toolbar.filter(\.shown)) { item in
-                    if let command = MdshipCommand(rawValue: item.command) {
-                        Button {
-                            document.run(command)
-                        } label: {
-                            Label(command.title, systemImage: item.icon)
-                        }
-                        .help("mdship: \(command.title)")
-                        .disabled(document.mdshipActivity != nil || !document.isMarkdown)
-                    }
-                }
+                ForEach(toolbarItems(in: .insert)) { item in toolbarButton(item) }
+            }
+            ToolbarItemGroup {
+                ForEach(toolbarItems(in: .document)) { item in toolbarButton(item) }
                 if document.mdshipActivity != nil {
                     ProgressView().controlSize(.small)
                 }
-                Toggle(isOn: Binding(get: { Preferences.shared.showPlaceholders },
-                                     set: { Preferences.shared.showPlaceholders = $0 })) {
-                    Label("Placeholders", systemImage: "curlybraces.square")
-                }
-                .help("Show mdship placeholders in the preview")
             }
         }
         .alert("Go to Line", isPresented: $document.isGoToLinePresented) {
@@ -119,6 +54,104 @@ struct ContentView: View {
 }
 
 extension ContentView {
+
+    private func toolbarItems(in group: ToolbarGroup) -> [ToolbarCommand] {
+        Preferences.shared.toolbar.filter { $0.shown && $0.group == group }
+    }
+
+    @ViewBuilder
+    private func toolbarButton(_ item: ToolbarCommand) -> some View {
+        let preferences = Preferences.shared
+        let editor = document.editor
+        if let command = item.mdshipCommand {
+            Button {
+                document.run(command)
+            } label: {
+                Label(command.title, systemImage: item.icon)
+            }
+            .help("mdship: \(command.title)")
+            .disabled(document.mdshipActivity != nil || !document.isMarkdown)
+        } else if let action = item.action {
+            switch action {
+            case .lineNumbers:
+                let mode = preferences.lineNumbers
+                Button {
+                    preferences.lineNumbers = mode.next
+                } label: {
+                    Label(mode.title, systemImage: item.icon(state: LineNumberMode.allCases.firstIndex(of: mode) ?? 0))
+                }
+                .help("\(mode.title) — click for \(mode.next.title.lowercased())")
+            case .wrapLines:
+                let wraps = preferences.wrapLines
+                Button {
+                    preferences.wrapLines.toggle()
+                } label: {
+                    Label(wraps ? "Wrap Lines" : "Don’t Wrap Lines", systemImage: item.icon(state: wraps ? 0 : 1))
+                }
+                .help(wraps ? "Long lines wrap in the editor — click to let them run on"
+                            : "Long lines run on in the editor — click to wrap them")
+            case .preview:
+                let shown = preferences.showPreview
+                Button {
+                    preferences.showPreview.toggle()
+                } label: {
+                    Label(shown ? "Hide Preview" : "Show Preview", systemImage: item.icon(state: shown ? 0 : 1))
+                }
+                .help(shown ? "Hide the preview (⌥⌘P)" : "Show the preview (⌥⌘P)")
+            case .insertVariable:
+                Button {
+                    editor.insertVariableReference(withSpaces: false)
+                } label: {
+                    Label("Variable Reference", systemImage: item.icon)
+                }
+                .help("Insert a variable reference <!--$var--> for a value without spaces (⌃⌥⌘V)")
+            case .insertVariableWithSpaces:
+                Button {
+                    editor.insertVariableReference(withSpaces: true)
+                } label: {
+                    Label("Variable Reference with Spaces", systemImage: item.icon)
+                }
+                .help("Insert a variable reference <!--$var<>--><!----> for any value (⌥⌘V)")
+            case .insertComment:
+                Button {
+                    editor.insertCommentStart()
+                } label: {
+                    Label("Comment", systemImage: item.icon)
+                }
+                .help("Start a comment or placeholder <!-- (⌘/)")
+            case .insertCodeBlock:
+                Button {
+                    editor.insertCodeBlock()
+                } label: {
+                    Label("Code Block", systemImage: item.icon)
+                }
+                .help("Insert a fenced code block, or fence the selected lines (⇧⌥⌘C)")
+            case .outline:
+                OutlineMenu(document: document, icon: item.icon)
+            case .structure:
+                Button {
+                    document.showStructure()
+                } label: {
+                    Label("Structure", systemImage: item.icon)
+                }
+                .help("Rearrange the document by its headings (⌥⌘O)")
+            case .placeholders:
+                Toggle(isOn: Binding(get: { preferences.showPlaceholders },
+                                     set: { preferences.showPlaceholders = $0 })) {
+                    Label("Placeholders", systemImage: item.icon)
+                }
+                .help("Show mdship placeholders in the preview")
+            case .console:
+                let controller = DocumentController.shared
+                Toggle(isOn: Binding(get: { controller.isConsoleVisible },
+                                     set: { _ in controller.toggleConsole() })) {
+                    Label("Console", systemImage: item.icon)
+                }
+                .help(controller.isConsoleVisible ? "Hide the mdship console (⇧⌘M)" : "Show the mdship console (⇧⌘M)")
+            }
+        }
+    }
+
     /// The editor with the find bar above it.
     var editorPane: some View {
         VStack(spacing: 0) {
@@ -136,6 +169,7 @@ extension ContentView {
 struct OutlineMenu: View {
 
     let document: Document
+    var icon = "list.bullet.indent"
 
     var body: some View {
         Menu {
@@ -162,7 +196,7 @@ struct OutlineMenu: View {
                 }
             }
         } label: {
-            Label("Outline", systemImage: "list.bullet.indent")
+            Label("Outline", systemImage: icon)
         }
         .help("Jump to a heading or placeholder")
     }

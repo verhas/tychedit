@@ -121,8 +121,12 @@ struct PlaceholderCommands: Commands {
     var body: some Commands {
         CommandMenu("Placeholder") {
             Section("Insert at the Cursor") {
-                Button("Variable Reference <!--$var<>--><!---->") { document?.editor.insertVariableReference() }
-                    .keyboardShortcut("v", modifiers: [.command, .option])
+                Button("Variable Reference <!--$var-->") { document?.editor.insertVariableReference(withSpaces: false) }
+                    .keyboardShortcut("v", modifiers: [.command, .option, .control])
+                Button("Variable Reference with Spaces <!--$var<>--><!---->") {
+                    document?.editor.insertVariableReference(withSpaces: true)
+                }
+                .keyboardShortcut("v", modifiers: [.command, .option])
                 Button("Comment Start <!--") { document?.editor.insertCommentStart() }
                     .keyboardShortcut("/")
                 Button("Code Block ```") { document?.editor.insertCodeBlock() }
@@ -182,7 +186,7 @@ struct MdshipCommands: Commands {
 
             Divider()
 
-            Button("Show Console") { controller.showConsole() }
+            Button(controller.isConsoleVisible ? "Hide Console" : "Show Console") { controller.toggleConsole() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
             Button("Install or Upgrade mdship…") {
                 controller.showConsole()

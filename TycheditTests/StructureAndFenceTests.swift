@@ -131,3 +131,45 @@ final class StructureAndFenceTests: XCTestCase {
         XCTAssertTrue(CodeFenceGuard.edits(afterReplacing: NSRange(location: 4, length: 0), in: tilde, with: "```").isEmpty)
     }
 }
+
+/// Turning short variable references into the marker form when mdship refuses a value with spaces.
+final class VariableMarkerFixTests: XCTestCase {
+
+    private let message = "Variable 'name' value 'value kakks' contains spaces. Use the marker form: <!--$name<MARKER>-->value with spaces<!--MARKER-->"
+
+    func testReadsTheFailure() {
+        XCTAssertEqual(VariableMarkerFix.failure(in: "Error: " + message),
+                       VariableMarkerFix.Failure(name: "name", value: "value kakks"))
+        XCTAssertEqual(VariableMarkerFix.failure(in: "Variable 'config.title' value 'it's here' contains spaces. Use the marker form: x")?.value,
+                       "it's here")
+        XCTAssertNil(VariableMarkerFix.failure(in: "Line 3: Variable 'name' not found or is None"))
+    }
+
+    func testShortestMarker() {
+        XCTAssertEqual(VariableMarkerFix.marker(for: "two words"), "")
+        XCTAssertEqual(VariableMarkerFix.marker(for: "a <!----> b"), "1")
+        XCTAssertEqual(VariableMarkerFix.marker(for: "a <!----> <!--1--> b"), "2")
+    }
+
+    func testRewritesEveryShortReferenceToTheVariable() {
+        let text = """
+            <!--SET
+            name: "value kakks"
+            -->
+            Hello <!--$name-->old
+            Keep <!--${name}-->`old` trailing
+            ```
+            <!--$name-->incode
+            ```
+            Already <!--$name<>-->value kakks<!---->
+            """
+        let scan = PlaceholderScanner.scan(text)
+        let failure = VariableMarkerFix.failure(in: message)!
+        let fixed = VariableMarkerFix.fix(failure, in: text, variables: scan.variables)
+        XCTAssertEqual(fixed.count, 2)
+        XCTAssertTrue(fixed.text.contains("Hello <!--$name<>--><!---->\n"))
+        XCTAssertTrue(fixed.text.contains("Keep <!--${name}<>-->`old`<!----> trailing"))
+        XCTAssertTrue(fixed.text.contains("<!--$name-->incode"), "code blocks are left alone")
+        XCTAssertTrue(fixed.text.contains("Already <!--$name<>-->value kakks<!---->"))
+    }
+}

@@ -684,9 +684,11 @@ final class EditorController: NSObject {
         replace(range, with: "", selecting: NSRange(location: range.location, length: 0), actionName: "Delete Line")
     }
 
-    /// A variable reference whose value may hold spaces, with the name selected.
-    func insertVariableReference() {
-        insert("<!--$\u{1}var\u{2}<>--><!---->", replacing: selectedRange, actionName: "Insert Variable Reference")
+    /// A variable reference with the name selected: the short form, for a
+    /// value without spaces, or the marker form, for any value.
+    func insertVariableReference(withSpaces: Bool) {
+        let snippet = withSpaces ? "<!--$\u{1}var\u{2}<>--><!---->" : "<!--$\u{1}var\u{2}-->"
+        insert(snippet, replacing: selectedRange, actionName: "Insert Variable Reference")
         focus()
     }
 
