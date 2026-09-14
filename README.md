@@ -20,6 +20,7 @@ Requires Xcode 26 and macOS 15 or later. No third-party dependencies.
 ./build.sh test         # unit tests (the mdship tests run only when mdship is installed)
 ./build.sh release      # optimised build
 ./build.sh path         # where the .app is
+swift make-icon.swift   # redraw the app icon into Tychedit/Assets.xcassets
 ```
 
 To open a file from outside the app: Finder's **Open With**, Diptych, or
@@ -44,6 +45,13 @@ question back. The default is set for the copy of Tychedit that asks, so saying
 Yes to a development build from `./build.sh run` points Markdown files at that build.
 
 ## Windows and files
+
+**The window's toolbar**, at its left, has three switches for the editor:
+line numbers (off, absolute, relative), **Wrap Lines** (long lines wrap at the
+editor's width, or run on with a horizontal scroller), and **Show Preview**
+(the preview pane beside the editor, or the editor alone). The same switches
+are in the View menu, where Show Preview is ⌥⌘P, and all three are remembered
+in `settings.json`. The mdship command buttons sit at the right.
 
 **One window per file.** Opening a file that is already open brings its window
 forward instead of opening it twice. That holds wherever the request comes from:
@@ -75,12 +83,14 @@ row too. The search field starts with the selected text, when there is some.
   - **Aa**: match case;
   - **W**: whole words only;
   - **.\***: regular expression. The replacement can then use `$1`, `$2` …
-    for the groups, and `^` and `$` match at line starts and ends.
+    for the groups, and `^` and `$` match at line starts and ends. A
+    replacement that refers to a group the expression does not have is
+    reported under the bar, and nothing is replaced until it is fixed.
 - Every match is highlighted and counted ("2 of 7").
 - Return or ⌘G goes to the next match; ⇧Return or ⇧⌘G goes to the previous.
 - In the replace field, Return replaces the selected match and moves on.
 - **All** replaces every match as one change, so a single Undo takes it back.
-- Escape or **Done** closes the bar.
+- Escape or the ⓧ button closes the bar.
 
 ## Editing mdship placeholders
 
@@ -288,6 +298,7 @@ saves first and can undo.
 | Duplicate Line / Delete Line                 | ⌘D / ⇧⌘K                 |
 | mdship Update / Console                      | ⇧⌘U / ⇧⌘M                |
 | Fold / Unfold / Fold All / Unfold All        | ⌥⌘← / ⌥⌘→ / ⌥⇧⌘← / ⌥⇧⌘→  |
+| Show / Hide Preview                          | ⌥⌘P                      |
 | Bigger / Smaller / Actual Size               | ⌘+ / ⌘- / ⌘0             |
 
 ## Layout

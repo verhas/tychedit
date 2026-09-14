@@ -9,17 +9,14 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HSplitView {
-                VStack(spacing: 0) {
-                    if document.find.isVisible {
-                        FindBar(find: document.find)
-                        Divider()
-                    }
-                    HostedView(view: document.editor.scrollView)
+            if Preferences.shared.showPreview {
+                HSplitView {
+                    editorPane
+                    HostedView(view: document.preview.webView)
+                        .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
                 }
-                .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
-                HostedView(view: document.preview.webView)
-                    .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
+            } else {
+                editorPane
             }
             Divider()
             StatusBar(document: document)
@@ -34,6 +31,26 @@ struct ContentView: View {
                     Label(mode.title, systemImage: mode.icon)
                 }
                 .help("\(mode.title) — click for \(mode.next.title.lowercased())")
+            }
+            ToolbarItem(placement: .navigation) {
+                let wraps = Preferences.shared.wrapLines
+                Button {
+                    Preferences.shared.wrapLines.toggle()
+                } label: {
+                    Label(wraps ? "Wrap Lines" : "Don’t Wrap Lines",
+                          systemImage: wraps ? "arrow.turn.down.left" : "arrow.right.to.line")
+                }
+                .help(wraps ? "Long lines wrap in the editor — click to let them run on"
+                            : "Long lines run on in the editor — click to wrap them")
+            }
+            ToolbarItem(placement: .navigation) {
+                let shown = Preferences.shared.showPreview
+                Button {
+                    Preferences.shared.showPreview.toggle()
+                } label: {
+                    Label(shown ? "Hide Preview" : "Show Preview", systemImage: shown ? "sidebar.right" : "rectangle")
+                }
+                .help(shown ? "Hide the preview (⌥⌘P)" : "Show the preview (⌥⌘P)")
             }
             ToolbarItemGroup {
                 OutlineMenu(document: document)
@@ -71,6 +88,20 @@ struct ContentView: View {
         } message: {
             Text("Line 1 to \(document.editor.lineIndex.count)")
         }
+    }
+}
+
+extension ContentView {
+    /// The editor with the find bar above it.
+    var editorPane: some View {
+        VStack(spacing: 0) {
+            if document.find.isVisible {
+                FindBar(find: document.find)
+                Divider()
+            }
+            HostedView(view: document.editor.scrollView)
+        }
+        .frame(minWidth: 240, idealWidth: 560, maxWidth: .infinity)
     }
 }
 

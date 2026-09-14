@@ -27,6 +27,12 @@ struct TycheditApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The Dock caches an app's icon by bundle path, and a debug build keeps
+        // whatever it cached first -- the generic icon, for a build made before
+        // Tychedit had one. Setting the tile image at launch sidesteps the cache.
+        if let icon = NSImage(named: "AppIcon") {
+            NSApplication.shared.applicationIconImage = icon
+        }
         MainActor.assumeIsolated {
             let controller = DocumentController.shared
             // `Tychedit notes.md` from a shell. Arguments that are not existing
