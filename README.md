@@ -20,8 +20,11 @@ Requires Xcode 26 and macOS 15 or later. No third-party dependencies.
 ./build.sh test         # unit tests (the mdship tests run only when mdship is installed)
 ./build.sh release      # optimised build
 ./build.sh path         # where the .app is
-swift make-icon.swift   # redraw the app icon into Tychedit/Assets.xcassets
 ```
+
+The layered app icon lives in `Tychedit/AppIcon.icon`. Open that package in
+Icon Composer to preview or adjust its default, dark and tinted appearances;
+Xcode generates the legacy macOS icon sizes when it builds the app.
 
 To open a file from outside the app: Finder's **Open With**, Diptych, or
 `open -a Tychedit file.md`. The app registers as an *alternate* editor for
