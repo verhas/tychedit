@@ -1,0 +1,200 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "extended-srgb:0.43137,0.30196,0.85882,1.00000",
+      "extended-srgb:0.20000,0.12941,0.47059,1.00000"
+    ]
+  },
+  "fill-specializations" : [
+    {
+      "appearance" : "dark",
+      "value" : {
+        "linear-gradient" : [
+          "extended-srgb:0.32157,0.21961,0.69020,1.00000",
+          "extended-srgb:0.11765,0.07843,0.29020,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance" : "tinted",
+      "value" : "automatic"
+    }
+  ],
+  "groups" : [
+    {
+      "name" : "Swiss Badge",
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.00000,1.00000,1.00000,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.00000,1.00000,1.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "blend-mode" : "screen",
+          "glass" : false,
+          "image-name" : "SwissCross.svg",
+          "name" : "Swiss Cross"
+        },
+        {
+          "fill" : {
+            "solid" : "extended-srgb:1.00000,0.00000,0.00000,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:1.00000,0.00000,0.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "FlagField.svg",
+          "name" : "Swiss Red"
+        }
+      ],
+      "lighting" : "combined",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.28
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "name" : "Document",
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.45098,0.27059,0.85098,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.50196,0.32157,0.89020,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "MarkdownMark.svg",
+          "name" : "Markdown Mark"
+        },
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.61961,0.60000,0.70196,0.72000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.52549,0.50196,0.62745,0.76000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "Rules.svg",
+          "name" : "Text Rules"
+        },
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.86275,0.84314,0.80000,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.74118,0.71765,0.67059,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "Fold.svg",
+          "name" : "Fold"
+        },
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.00000,0.98039,0.94902,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:0.00000,0.98039,0.94902,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "blend-mode" : "screen",
+          "glass" : false,
+          "image-name" : "Paper.svg",
+          "name" : "Paper Surface"
+        },
+        {
+          "fill" : {
+            "solid" : "extended-srgb:1.00000,0.00000,0.00000,1.00000"
+          },
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "extended-srgb:1.00000,0.00000,0.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "Paper.svg",
+          "name" : "Paper Base"
+        }
+      ],
+      "lighting" : "combined",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.24
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}
