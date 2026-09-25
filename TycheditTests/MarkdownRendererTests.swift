@@ -160,6 +160,14 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(result.contains("<p data-line=\"3\">Text</p>"))
     }
 
+    func testGeneratedContentGluedToTheOpeningTagOnTheSameLineStillRenders() {
+        // AI placeholders write their generated content straight after the
+        // opening tag's `-->` with no newline, so the closing `-->` shares its
+        // line with the start of the body.
+        let result = html("<!--AI\nprompt: |\n  hi\n-->glued content\n<!--/AI-->\n")
+        XCTAssertTrue(result.contains("<div class=\"mds-body\"><p data-line=\"3\">glued content</p>\n</div>"))
+    }
+
     func testUnclosedPlaceholderIsFlaggedAndTheRestStillRenders() {
         let result = html("<!--INCLUDE\nfrom: x\n-->\n# After\n")
         XCTAssertTrue(result.contains("mds-problem"))

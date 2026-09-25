@@ -176,10 +176,24 @@ private final class Context {
             return blocks([lines[line]])
         }
         guard let closeLine = placeholder.closeLine, let close = placeholder.closeRange else { return "" }
-        let firstBodyLine = placeholder.openLines.upperBound + 1
-        guard firstBodyLine <= closeLine else { return "" }
+        let openLine = placeholder.openLines.upperBound
+        let openEnd = NSMaxRange(placeholder.openRange)
 
-        var html = renderRegion(lines: firstBodyLine..<closeLine)
+        var html = ""
+        // Generated content that starts right after the opening tag's `-->`,
+        // without a newline, shares the tag's line.
+        let openLineRange = index.contentRange(ofLine: openLine)
+        if openEnd < NSMaxRange(openLineRange) {
+            let after = text.substring(with: NSRange(location: openEnd, length: NSMaxRange(openLineRange) - openEnd))
+            if !after.trimmingCharacters(in: .whitespaces).isEmpty {
+                html += blocks([SourceLine(text: after, number: openLine)])
+            }
+        }
+
+        let firstBodyLine = openLine + 1
+        if firstBodyLine < closeLine {
+            html += renderRegion(lines: firstBodyLine..<closeLine)
+        }
         // Generated content that runs straight into the closing tag, without a
         // newline, shares the tag's line.
         let lineStart = index.starts[closeLine]
