@@ -58,7 +58,16 @@ enum TextFile {
         defer { try? fileManager.removeItem(at: scratch) }
         let copy = scratch.appendingPathComponent(target.lastPathComponent)
         try data.write(to: copy)
-        _ = try fileManager.replaceItemAt(target, withItemAt: copy)
+        do {
+            _ = try fileManager.replaceItemAt(target, withItemAt: copy)
+        } catch {
+            // replaceItemAt swaps the content first and only afterwards tries
+            // to carry the original's permissions, extended attributes and
+            // creation date over to the replacement -- a permission problem
+            // in that second step throws even though the swap already
+            // landed. Trust what is actually on disk over the error.
+            guard let onDisk = try? Data(contentsOf: target), onDisk == data else { throw error }
+        }
     }
 
     static func modificationDate(of url: URL) -> Date? {
