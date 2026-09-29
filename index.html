@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tychedit — a two-pane Markdown editor that understands mdship</title>
+<meta name="description" content="Tychedit is a two-pane Markdown editor for macOS that shows, checks and runs mdship placeholders. Text on the left, preview on the right.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --soft: #f6f8fa; --accent: #7c4dff; --link: #0969da;
+  --added: #1a7f37; --changed: #0a5fd6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --fg: #e6edf3; --muted: #9198a1; --border: #33383f;
+    --soft: #202226; --accent: #b39dff; --link: #4493f8;
+    --added: #3fb950; --changed: #5aa9ff;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, kbd { font: 0.88em ui-monospace, "SF Mono", Menlo, monospace; }
+code { background: var(--soft); border: 1px solid var(--border); border-radius: 5px; padding: 0.05em 0.35em; }
+kbd { background: var(--soft); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0.05em 0.4em; white-space: nowrap; }
+pre { background: var(--soft); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+pre code { background: none; border: 0; padding: 0; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+nav { border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+nav .wrap { display: flex; align-items: center; gap: 22px; height: 54px; flex-wrap: wrap; }
+nav .brand { font-weight: 700; color: var(--fg); margin-right: auto; }
+nav a { color: var(--muted); font-size: 15px; }
+header.hero { padding: 64px 0 40px; text-align: center; }
+h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.02em; }
+h1 span { color: var(--accent); }
+.lead { font-size: 1.25rem; color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+.buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: 1px solid var(--border); color: var(--fg); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:hover { text-decoration: none; filter: brightness(1.08); }
+.note { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+/* The window mock-up */
+.window { margin: 8px auto 0; max-width: 940px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.14); text-align: left; }
+.titlebar { background: var(--soft); border-bottom: 1px solid var(--border); padding: 9px 14px; display: flex; gap: 7px; align-items: center; font-size: 13px; color: var(--muted); }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.dot:nth-child(2) { background: #febc2e; } .dot:nth-child(3) { background: #28c840; }
+.titlebar b { margin: 0 auto; font-weight: 600; }
+.panes { display: grid; grid-template-columns: 1fr 1fr; }
+.pane { padding: 14px 0; min-height: 300px; font-size: 13px; }
+.pane + .pane { border-left: 1px solid var(--border); }
+.src { font: 12.5px/1.65 ui-monospace, "SF Mono", Menlo, monospace; }
+.ln { display: grid; grid-template-columns: 12px 1fr; padding-right: 14px; white-space: pre-wrap; }
+.ln i { display: block; width: 3px; margin-left: 4px; }
+.ln.a i { background: var(--added); } .ln.m i { background: var(--changed); }
+.ln .ph { color: var(--accent); } .ln .h { font-weight: 700; }
+.ln .k { font-weight: 700; }
+.prev { padding: 14px 22px; font: 14px/1.6 -apple-system, sans-serif; }
+.prev h4 { margin: 0 0 8px; font-size: 1.3em; }
+.prev p { margin: 0 0 10px; }
+.card { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+.card b { font: 600 10px ui-monospace, monospace; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; margin-right: 6px; }
+.gen { border-left: 3px solid rgba(124,77,255,.4); background: rgba(124,77,255,.07); border-radius: 0 6px 6px 0; padding: 6px 12px 1px; margin-bottom: 10px; }
+.prev .added { color: var(--added); } .prev .changed { color: var(--changed); }
+@media (max-width: 700px) { .panes { grid-template-columns: 1fr; } .pane + .pane { border-left: 0; border-top: 1px solid var(--border); } }
+
+section { padding: 48px 0; border-top: 1px solid var(--border); }
+section h2 { font-size: 1.9rem; margin: 0 0 8px; letter-spacing: -0.01em; }
+section > .wrap > p.intro { color: var(--muted); max-width: 760px; margin: 0 0 28px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 18px; }
+.card-box { background: var(--soft); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+.card-box h3 { margin: 0 0 6px; font-size: 1.08rem; }
+.card-box p { margin: 0; color: var(--muted); font-size: 15.5px; }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 800px) { .two { grid-template-columns: 1fr; } }
+ul.tight { padding-left: 1.2em; margin: 0; } ul.tight li { margin: 4px 0; }
+footer { border-top: 1px solid var(--border); padding: 28px 0 40px; color: var(--muted); font-size: 14px; text-align: center; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">Tychedit</a>
+    <a href="#why">Why</a>
+    <a href="#features">Features</a>
+    <a href="#git">Git</a>
+    <a href="#mdship">mdship</a>
+    <a href="#keys">Keyboard</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/verhas/tychedit">GitHub</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <h1>Markdown, with the <span>placeholders</span> showing.</h1>
+    <p class="lead">Tychedit is a two-pane Markdown editor for macOS that understands <a href="https://pypi.org/project/mdship/">mdship</a> placeholders, checks them as you type, and runs mdship for you. Text on the left, preview on the right.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/verhas/tychedit/releases/latest">Download</a>
+      <a class="btn" href="https://github.com/verhas/tychedit">Source on GitHub</a>
+    </div>
+    <p class="note">macOS 15 or later · no third-party dependencies · Apache 2.0</p>
+  </div>
+
+  <div class="wrap" style="margin-top:40px">
+    <div class="window" aria-label="Illustration of the Tychedit window">
+      <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>guide.md</b></div>
+      <div class="panes">
+        <div class="pane src">
+<div class="ln"><i></i><span class="h"># Release guide</span></div>
+<div class="ln"><i></i><span></span></div>
+<div class="ln m"><i></i><span>Version <span class="ph">&lt;!--$version--&gt;</span>1.0.3<span class="ph">&lt;!----&gt;</span></span></div>
+<div class="ln"><i></i><span></span></div>
+<div class="ln"><i></i><span class="ph">&lt;!--TOC</span></div>
+<div class="ln"><i></i><span class="ph">  <span class="k">max-level:</span> 2</span></div>
+<div class="ln"><i></i><span class="ph">--&gt;</span></div>
+<div class="ln a"><i></i><span>- Install</span></div>
+<div class="ln a"><i></i><span>- Commit and push</span></div>
+<div class="ln"><i></i><span class="ph">&lt;!--/TOC--&gt;</span></div>
+<div class="ln"><i></i><span></span></div>
+<div class="ln a"><i></i><span>Changed text is blue, new text is green.</span></div>
+        </div>
+        <div class="pane prev">
+          <h4>Release guide</h4>
+          <p class="changed">Version 1.0.3</p>
+          <div class="card"><b>TOC</b>max-level: 2</div>
+          <div class="gen"><p class="added" style="margin:0 0 6px">Install<br>Commit and push</p></div>
+          <p class="added">Changed text is blue, new text is green.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <h2>Why another Markdown editor?</h2>
+    <p class="intro">mdship placeholders are HTML comments, so most editors and every browser show them as nothing at all. You edit blind and find out what <code>mdship update</code> thought of your edits only after you run it.</p>
+    <div class="grid">
+      <div class="card-box"><h3>It shows them</h3><p>Every placeholder is a small card in the preview, generated content is framed, and variable references carry a <code>$name</code> label. One switch gives you the reader's view.</p></div>
+      <div class="card-box"><h3>It checks them</h3><p>Unknown parameters, missing ones, wrong values, bad regular expressions and paths that point nowhere are underlined as you type.</p></div>
+      <div class="card-box"><h3>It runs them</h3><p>The mdship menu runs every command on the saved file, and one Undo takes back what mdship did.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Features</h2>
+    <p class="intro">A native editor built on AppKit and SwiftUI. The Markdown renderer is written for the app: a library would hide the very comments this editor exists to show, and every block needs its source line for scroll sync.</p>
+    <div class="grid">
+      <div class="card-box"><h3>Parameter suggestions</h3><p>Type inside a placeholder and get its parameters, each with a one-line explanation. Values too: choices, file names from disk, scripts from <code>.mdship/scripts/</code>.</p></div>
+      <div class="card-box"><h3>Follow links and references</h3><p><kbd>⌘</kbd>-click a <code>from:</code> path, a variable, a heading link or an INCLUDE range and land on the exact line.</p></div>
+      <div class="card-box"><h3>Document structure</h3><p>A window of only the headings. Drag a heading to move its whole section, or sideways to change its level.</p></div>
+      <div class="card-box"><h3>Find and replace</h3><p>Case, whole word and regular expressions with <code>$1</code> groups. Replace All is a single undo.</p></div>
+      <div class="card-box"><h3>Folding</h3><p>Fold sections and placeholders, with a badge that says what is hidden. Saving, find and mdship still see everything.</p></div>
+      <div class="card-box"><h3>Byte-faithful saving</h3><p>mdship keeps checksums inside the file, so a save changes only what you edited: encoding, line endings, permissions and attributes stay.</p></div>
+      <div class="card-box"><h3>Autosave that never interrupts</h3><p>Saves after a pause, never mid-word, and never over a file that changed on disk. Changes made by git or a terminal are picked up when the window returns.</p></div>
+      <div class="card-box"><h3>Scroll-synced preview</h3><p>The preview follows the editor line by line, and clicking a link in it behaves like ⌘-clicking in the editor.</p></div>
+      <div class="card-box"><h3>Configurable toolbar</h3><p>Choose the buttons, their order and their icons (any SF Symbol) in Settings ▸ Toolbar.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="git">
+  <div class="wrap">
+    <h2>Git, right in the margin</h2>
+    <p class="intro">For a file in a git repository, Tychedit compares the text with the last commit and shows the difference on both sides of the window.</p>
+    <div class="two">
+      <div>
+        <ul class="tight">
+          <li><span class="swatch" style="background:var(--added)"></span><b>Green</b> bars in the gutter, and green text in the preview, for added lines.</li>
+          <li><span class="swatch" style="background:var(--changed)"></span><b>Blue</b> bars and blue text for changed lines.</li>
+          <li><span class="swatch" style="background:#cf222e"></span>A <b>red wedge</b> where committed lines were deleted.</li>
+          <li>Hover a change to see the committed text; right-click to <b>Revert This Line</b>, <b>Revert Whole Change</b> or <b>Restore Deleted Lines</b>. Each is one undo.</li>
+        </ul>
+      </div>
+      <div>
+        <p style="margin-top:0"><b>Commit without leaving the editor.</b> The <em>Commit to Git</em> toolbar button, or <b>File ▸ Commit…</b> (<kbd>⌥⌘K</kbd>), asks for a message and offers <b>Commit</b>, <b>Commit + Push</b> and <b>Cancel</b>. Only the edited file is committed, whatever else is staged, and an unsaved file is saved first.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="mdship">
+  <div class="wrap">
+    <h2>Working with mdship</h2>
+    <p class="intro">Tychedit starts one <code>mdship mcp</code> server on first use and keeps it running for every window, so commands do not pay Python's start-up time.</p>
+    <div class="two">
+      <div>
+        <h3 style="margin-top:0">The mdship menu</h3>
+        <ul class="tight">
+          <li>Update Placeholders (<kbd>⇧⌘U</kbd>), or overwrite edits with <code>--force</code></li>
+          <li>Update Table of Contents, Includes, Render Diagrams</li>
+          <li>Number and unnumber headings, fix levels, promote and demote</li>
+          <li>Format Tables, Semantic Line Breaks, Reflow Paragraphs</li>
+          <li>Validate Links, Check AI Placeholders, Add and Verify Checksum</li>
+        </ul>
+        <p>Everything mdship prints goes to a console, live, and problems it reports with a line number join the editor's own in the problems menu.</p>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Checks as you type</h3>
+        <ul class="tight">
+          <li>Unknown or missing parameters, with <em>did you mean…?</em> for typos</li>
+          <li>Values of the wrong kind, unknown <code>strategy</code> or <code>format</code></li>
+          <li>Regular expressions that do not compile or capture the wrong number of groups</li>
+          <li>Combinations mdship rejects</li>
+          <li>Missing files, missing scripts, ranges past the end of a file</li>
+          <li>Unclosed tags, bad nesting, and generated content edited by hand</li>
+        </ul>
+      </div>
+    </div>
+    <p>If mdship is not installed, <b>mdship ▸ Install or Upgrade mdship…</b> runs <code>pip install --upgrade mdship</code> in your login shell.</p>
+  </div>
+</section>
+
+<section id="keys">
+  <div class="wrap">
+    <h2>Keyboard</h2>
+    <table>
+      <tr><th>Action</th><th>Shortcut</th></tr>
+      <tr><td>New / Open / Save / Save As</td><td><kbd>⌘N</kbd> <kbd>⌘O</kbd> <kbd>⌘S</kbd> <kbd>⇧⌘S</kbd></td></tr>
+      <tr><td>Commit…</td><td><kbd>⌥⌘K</kbd></td></tr>
+      <tr><td>Find / Find and Replace</td><td><kbd>⌘F</kbd> <kbd>⌘R</kbd></td></tr>
+      <tr><td>Show completions</td><td><kbd>⌃Space</kbd>, <kbd>Esc</kbd> or <kbd>⌥Esc</kbd></td></tr>
+      <tr><td>Open link or referenced file</td><td><kbd>⌘</kbd>-click or <kbd>⌃⌘J</kbd></td></tr>
+      <tr><td>Go to Line / Document Structure</td><td><kbd>⌘L</kbd> <kbd>⌥⌘O</kbd></td></tr>
+      <tr><td>Next / Previous Problem</td><td><kbd>⌘'</kbd> <kbd>⇧⌘'</kbd></td></tr>
+      <tr><td>Bold / Italic / Code / Link</td><td><kbd>⌘B</kbd> <kbd>⌘I</kbd> <kbd>⌥⌘C</kbd> <kbd>⌘K</kbd></td></tr>
+      <tr><td>Insert variable reference</td><td><kbd>⌃⌥⌘V</kbd> <kbd>⌥⌘V</kbd></td></tr>
+      <tr><td>mdship Update / Console</td><td><kbd>⇧⌘U</kbd> <kbd>⇧⌘M</kbd></td></tr>
+      <tr><td>Fold / Unfold</td><td><kbd>⌥⌘←</kbd> <kbd>⌥⌘→</kbd></td></tr>
+      <tr><td>Show / Hide Preview</td><td><kbd>⌥⌘P</kbd></td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install and build</h2>
+    <p class="intro">Download the notarized <code>.dmg</code> from the <a href="https://github.com/verhas/tychedit/releases/latest">latest release</a>, drag Tychedit to Applications, and open a file. To build it yourself you need Xcode 26 and macOS 15 or later.</p>
+<pre><code>git clone https://github.com/verhas/tychedit.git
+cd tychedit
+./build.sh run            # build and launch
+./build.sh run file.md    # ...on a file
+./build.sh test           # unit tests
+./build.sh dmg            # signed disk image (release)</code></pre>
+    <p>Open a file from Finder's <b>Open With</b>, from <a href="https://github.com/verhas/diptych">Diptych</a>, or with <code>open -a Tychedit file.md</code>. Tychedit registers as an <em>alternate</em> Markdown editor and becomes the default only if you say Yes when it asks at start-up.</p>
+    <p>Settings live in <code>~/.tychedit/settings.json</code> as readable JSON; edits made by hand take effect when you switch back to the app.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Tychedit · <a href="https://github.com/verhas/tychedit">GitHub</a> · <a href="https://github.com/verhas/tychedit/releases">Releases</a> · <a href="https://github.com/verhas/tychedit/blob/main/LICENSE">Apache 2.0</a> · companion to <a href="https://github.com/verhas/diptych">Diptych</a>
+  </div>
+</footer>
+
+</body>
+</html>
