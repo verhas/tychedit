@@ -11,6 +11,8 @@
 #   ./build.sh stop      quit a running instance
 #   ./build.sh dmg       build Release and package it as a mountable .dmg
 #   ./build.sh notarize  submit the .dmg to Apple and staple the ticket
+#   ./build.sh publish   create the GitHub release from the notarized .dmg
+#   ./build.sh help      the full command list
 #   ./build.sh version [X.Y.Z]   print, or set, the marketing version
 #
 # Everything Xcode does with Cmd-R, without opening Xcode.
@@ -37,6 +39,42 @@ fi
 
 info() { printf '%s==>%s %s\n' "$BOLD" "$OFF" "$*"; }
 die()  { printf '%s==> %s%s\n' "$RED" "$*" "$OFF" >&2; exit 1; }
+
+show_help() {
+    cat <<EOF
+${BOLD}Build / run helper for Tychedit${OFF} -- everything Xcode does with Cmd-R,
+without opening Xcode.
+
+Usage: ./build.sh [command] [args]
+
+Everyday commands:
+  build              build (Debug) -- what runs with no command at all
+  run [file]         build, quit any running copy, and relaunch it,
+                     optionally opening a file
+  test               run the unit tests
+  path               print the path of the built .app
+  stop               quit a running instance
+  clean              delete build products
+
+Release commands, in the order a release actually goes out:
+  version [x.y.z]    show the current version, or bump to a new one
+  dmg                build Release, sign it, and package
+                     build/Tychedit-<version>.dmg
+  notarize           submit that .dmg to Apple and staple the ticket
+  publish            create the GitHub release for <version> from that
+                     .dmg, once it has checked it is notarized and no
+                     older than the source it was built from
+
+  release            a bare Release-configuration build, for trying one
+                     locally -- unsigned, no .dmg. Packaging one to ship
+                     is 'dmg', not this.
+
+Environment variables:
+  CONFIG             Debug or Release; build/run/clean read it, default Debug
+  NOTARY_PROFILE     the notarytool keychain profile to submit under,
+                     default Tychedit
+EOF
+}
 
 # Ask xcodebuild where the product goes rather than hardcoding a DerivedData
 # path, which contains a hash of the project location.
@@ -251,9 +289,70 @@ notarize_dmg() {
     printf '%s==> Notarized: %s%s\n' "$GREEN" "$dmg" "$OFF"
 }
 
+# Uploads the current version's .dmg to GitHub as a release, tagging it on the
+# way. Separate from `dmg` and `notarize` on purpose: those produce and vouch
+# for one file on this Mac and can be repeated as often as needed; this is the
+# single irreversible step that tells the world.
+publish_release() {
+    # Published from what everyone else can also see: nothing uncommitted, and
+    # nothing committed that has not reached the remote yet.
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        git status --short --untracked-files=no | sed 's/^/    /'
+        die "there are uncommitted changes -- commit or discard them before publishing"
+    fi
+    local upstream
+    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+    [ -n "$upstream" ] || die "no upstream branch is configured for $(git branch --show-current)"
+    local ahead
+    ahead=$(git rev-list --count "$upstream"..HEAD)
+    if [ "$ahead" != 0 ]; then
+        git log --oneline "$upstream"..HEAD | sed 's/^/    /'
+        die "$ahead commit(s) are not pushed to $upstream -- push before publishing"
+    fi
+
+    local version dmg notes
+    version=$(marketing_version)
+    dmg="$PWD/build/$SCHEME-$version.dmg"
+    [ -f "$dmg" ] || die "$dmg does not exist -- run ./build.sh dmg first"
+    notes="release-notes.$version.md"
+    [ -f "$notes" ] || die "$notes does not exist -- write this release's notes first"
+
+    # Nothing the image was built from has changed since it was built.
+    local newer
+    newer=$(find "$SCHEME" "${SCHEME}Tests" "$PROJECT" "$notes" build.sh \
+                 -type f -newer "$dmg" 2>/dev/null)
+    if [ -n "$newer" ]; then
+        printf '%s\n' "$newer" | sed 's/^/    /'
+        die "$(basename "$dmg") is older than the file(s) above -- run ./build.sh dmg again"
+    fi
+
+    # Notarized: asked of the file itself, not assumed from having run `notarize`.
+    xcrun stapler validate "$dmg" >/dev/null 2>&1 \
+        || die "$(basename "$dmg") is not notarized -- run ./build.sh notarize first"
+
+    command -v gh >/dev/null 2>&1 || die "the GitHub CLI ('gh') is not installed"
+
+    info "Publishing $(basename "$dmg") as the $version release on GitHub"
+    gh release create "$version" "$dmg" --title "$version" --notes-file "$notes"
+    printf '%s==> Released %s%s\n' "$GREEN" "$version" "$OFF"
+}
+
 # Package the Release build as a disk image with an Applications shortcut, the
 # arrangement users expect: mount, drag across, eject.
 make_dmg() {
+    # Checked before spending time on a build and a signature: a version
+    # bumped without release notes is the one way this app could ship saying
+    # nothing about what changed.
+    local wanted_version notes_file heading expected_heading
+    wanted_version=$(marketing_version)
+    notes_file="release-notes.$wanted_version.md"
+    [ -f "$notes_file" ] \
+        || die "$notes_file does not exist -- write this release's notes before packaging a dmg for it"
+    heading=$(head -1 "$notes_file")
+    expected_heading="# $SCHEME $wanted_version"
+    [ "$heading" = "$expected_heading" ] \
+        || die "$notes_file's first line is '$heading', expected '$expected_heading'"
+
     CONFIG=Release
     build
 
@@ -261,6 +360,8 @@ make_dmg() {
     app=$(app_path)
     version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
               "$app/Contents/Info.plist")
+    [ "$version" = "$wanted_version" ] \
+        || die "built app reports version $version but project.pbxproj says $wanted_version"
     dmg="$PWD/build/$SCHEME-$version.dmg"
 
     staging=$(mktemp -d)
@@ -381,6 +482,7 @@ PLIST
 }
 
 case "${1:-build}" in
+    -h|--help|help) show_help ;;
     build)   build ;;
     release) CONFIG=Release; build ;;
     run)
@@ -406,6 +508,7 @@ case "${1:-build}" in
     test)     run_tests ;;
     dmg)      make_dmg ;;
     notarize) notarize_dmg ;;
+    publish)  publish_release ;;
     version)  version_cmd "${2:-}" ;;
-    *)        die "unknown command '$1' (build | run | release | test | clean | path | stop | dmg | notarize | version)" ;;
+    *)        die "unknown command '$1' (build | run | release | test | clean | path | stop | dmg | notarize | publish | version | help)" ;;
 esac
