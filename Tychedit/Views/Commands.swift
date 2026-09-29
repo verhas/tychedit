@@ -303,3 +303,14 @@ extension RecentFiles {
         return "\(name) — \(folder)"
     }
 }
+
+struct HelpCommands: Commands {
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { UpdateChecker.shared.checkNow() }
+        }
+        CommandGroup(replacing: .help) {
+            Button("Tips…") { StartupTips.present() }
+        }
+    }
+}

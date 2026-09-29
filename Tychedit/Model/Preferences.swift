@@ -219,6 +219,11 @@ struct Settings: Codable, Equatable, Sendable {
     var find = FindOptions()
     var wrapLines = true
     var showPreview = true
+    /// The "Did You Know?" window at startup: on unless turned off.
+    var showTipsAtStartup = true
+    /// Looking for a newer release at startup: off unless turned on.
+    var checkForUpdates = false
+    var lastUpdateCheck: Date?
 
     init() {}
 
@@ -240,6 +245,9 @@ struct Settings: Codable, Equatable, Sendable {
         find = (try? c.decodeIfPresent(FindOptions.self, forKey: .find)) ?? d.find
         wrapLines = try c.decodeIfPresent(Bool.self, forKey: .wrapLines) ?? d.wrapLines
         showPreview = try c.decodeIfPresent(Bool.self, forKey: .showPreview) ?? d.showPreview
+        showTipsAtStartup = try c.decodeIfPresent(Bool.self, forKey: .showTipsAtStartup) ?? d.showTipsAtStartup
+        checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
+        lastUpdateCheck = try? c.decodeIfPresent(Date.self, forKey: .lastUpdateCheck)
         // Commands added in a later version appear, with their default icon,
         // after the ones the file already lists.
         let stored = (try? c.decodeIfPresent([ToolbarCommand].self, forKey: .toolbar)) ?? []
@@ -386,6 +394,18 @@ final class Preferences {
     var showPreview: Bool {
         get { settings.showPreview }
         set { settings.showPreview = newValue }
+    }
+    var showTipsAtStartup: Bool {
+        get { settings.showTipsAtStartup }
+        set { settings.showTipsAtStartup = newValue }
+    }
+    var checkForUpdates: Bool {
+        get { settings.checkForUpdates }
+        set { settings.checkForUpdates = newValue }
+    }
+    var lastUpdateCheck: Date? {
+        get { settings.lastUpdateCheck }
+        set { settings.lastUpdateCheck = newValue }
     }
     /// The find bar's case, whole-word and regex switches.
     var findOptions: FindOptions {

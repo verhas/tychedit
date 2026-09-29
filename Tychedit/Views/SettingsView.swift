@@ -45,6 +45,12 @@ struct SettingsView: View {
                     RecentFiles.shared.trim(to: limit)
                 }
 
+            Toggle("Show a tip at startup", isOn: $preferences.showTipsAtStartup)
+            Toggle("Check for updates at startup", isOn: $preferences.checkForUpdates)
+            Text("Off by default. When on, Tychedit asks GitHub once a day, at most, whether a newer release exists; nothing is sent but the request, and nothing is downloaded without your say-so. Tychedit ▸ Check for Updates… looks whenever you ask.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             LabeledContent("Settings file") {
                 Button(TycheditDirectory.file(Preferences.fileName).path.replacingOccurrences(
                     of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")) {

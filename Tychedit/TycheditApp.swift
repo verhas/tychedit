@@ -20,6 +20,7 @@ struct TycheditApp: App {
             PlaceholderCommands()
             MdshipCommands()
             ViewCommands()
+            HelpCommands()
         }
     }
 }
@@ -53,6 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if controller.documents.isEmpty { controller.newDocument() }
                     // Asked once a window is up, so the question has a context.
                     DefaultEditor.checkAtLaunch()
+                    // In turn, each returning when dismissed, so the two never
+                    // stack: tips first, then the opt-in look for a new release.
+                    StartupTips.presentAtLaunchIfWanted()
+                    UpdateChecker.shared.checkAtLaunchIfEnabled()
                 }
             }
             // Find mdship in the background, so the first command does not wait.
