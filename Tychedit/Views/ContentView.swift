@@ -135,6 +135,14 @@ extension ContentView {
                     Label("Structure", systemImage: item.icon)
                 }
                 .help("Rearrange the document by its headings (⌥⌘O)")
+            case .commit:
+                Button {
+                    document.commitToGit()
+                } label: {
+                    Label("Commit", systemImage: item.icon)
+                }
+                .help("Commit this file to git, and optionally push (⌥⌘K)")
+                .disabled(!document.isGitControlled)
             case .placeholders:
                 Toggle(isOn: Binding(get: { preferences.showPlaceholders },
                                      set: { preferences.showPlaceholders = $0 })) {

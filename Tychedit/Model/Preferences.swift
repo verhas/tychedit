@@ -47,6 +47,7 @@ enum ToolbarAction: String, CaseIterable, Sendable {
     case insertCodeBlock
     case outline
     case structure
+    case commit
     case placeholders
     case console
 
@@ -61,6 +62,7 @@ enum ToolbarAction: String, CaseIterable, Sendable {
         case .insertCodeBlock: "Insert Code Block ```"
         case .outline: "Outline Menu"
         case .structure: "Document Structure"
+        case .commit: "Commit to Git"
         case .placeholders: "Show Placeholders in Preview"
         case .console: "mdship Console"
         }
@@ -71,7 +73,7 @@ enum ToolbarAction: String, CaseIterable, Sendable {
         switch self {
         case .lineNumbers, .wrapLines, .preview: .view
         case .insertVariable, .insertVariableWithSpaces, .insertComment, .insertCodeBlock: .insert
-        case .outline, .structure, .placeholders, .console: .document
+        case .outline, .structure, .commit, .placeholders, .console: .document
         }
     }
 
@@ -96,6 +98,7 @@ enum ToolbarAction: String, CaseIterable, Sendable {
         case .insertCodeBlock: ["ellipsis.curlybraces"]
         case .outline: ["list.bullet.indent"]
         case .structure: ["list.bullet.rectangle"]
+        case .commit: ["arrow.up.doc"]
         case .placeholders: ["curlybraces.square"]
         case .console: ["apple.terminal"]
         }

@@ -22,6 +22,13 @@ struct FileCommands: Commands {
                 .keyboardShortcut("s")
             Button("Save As…") { document?.saveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
+            Button {
+                document?.commitToGit()
+            } label: {
+                Label("Commit…", systemImage: Preferences.shared.toolbarItem(for: .commit).icon)
+            }
+            .keyboardShortcut("k", modifiers: [.command, .option])
+            .disabled(document?.isGitControlled != true)
         }
     }
 }

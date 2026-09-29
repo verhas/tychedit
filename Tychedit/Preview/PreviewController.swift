@@ -27,6 +27,7 @@ final class PreviewController: NSObject {
     private var pendingScroll: (line: Double, atEnd: Bool)?
     private var showPlaceholders: Bool
     private var fontSize: Double
+    private var changes = LineChanges.none
 
     init(showPlaceholders: Bool, fontSize: Double) {
         self.showPlaceholders = showPlaceholders
@@ -66,6 +67,20 @@ final class PreviewController: NSObject {
         guard html != lastHTML else { return }
         lastHTML = html
         call("tychedit.update(\(PreviewController.jsonString(html)))")
+    }
+
+    /// Colors the blocks whose source lines changed since the last commit:
+    /// blue where modified, green where added, as in the editor's gutter.
+    func setChanges(_ new: LineChanges) {
+        guard new != changes else { return }
+        changes = new
+        if pageLoaded { sendChanges() }
+    }
+
+    private func sendChanges() {
+        let added = changes.lines.filter { $0.value == .added }.keys.sorted()
+        let modified = changes.lines.filter { $0.value == .modified }.keys.sorted()
+        call("tychedit.setChanges(\(added), \(modified))")
     }
 
     func setPlaceholdersVisible(_ visible: Bool) {
@@ -123,6 +138,7 @@ extension PreviewController: WKNavigationDelegate {
             lastHTML = html
             call("tychedit.update(\(PreviewController.jsonString(html)))")
         }
+        sendChanges()
         if let scroll = pendingScroll {
             pendingScroll = nil
             call("tychedit.scrollToLine(\(scroll.line), \(scroll.atEnd))")

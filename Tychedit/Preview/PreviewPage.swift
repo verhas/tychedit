@@ -34,6 +34,40 @@ enum PreviewPage {
     static let script = """
     window.tychedit = (function () {
         const content = () => document.getElementById('content');
+        let added = new Set(), modified = new Set();
+
+        // Colors each block by the changed source lines it covers. A block
+        // runs from its own line to the line of the next block; blocks that
+        // hold other blocks (lists, quotes, tables) are left to their parts.
+        function applyChanges() {
+            const root = content();
+            if (!root) { return; }
+            const all = Array.from(root.querySelectorAll('[data-line]'));
+            const lines = all.map(e => Number(e.dataset.line));
+            const lastChanged = Math.max(-1, ...added, ...modified);
+            all.forEach((element, i) => {
+                element.classList.remove('chg-added', 'chg-modified');
+                if (element.querySelector('[data-line]')) { return; }
+                let end = Infinity;
+                for (let j = i + 1; j < all.length; j++) {
+                    if (lines[j] > lines[i]) { end = lines[j]; break; }
+                }
+                let isAdded = false, isModified = false;
+                const stop = Math.min(end, lastChanged + 1);
+                for (let l = lines[i]; l < stop; l++) {
+                    if (modified.has(l)) { isModified = true; }
+                    else if (added.has(l)) { isAdded = true; }
+                }
+                if (isModified) { element.classList.add('chg-modified'); }
+                else if (isAdded) { element.classList.add('chg-added'); }
+            });
+        }
+
+        function setChanges(addedLines, modifiedLines) {
+            added = new Set(addedLines);
+            modified = new Set(modifiedLines);
+            applyChanges();
+        }
 
         function update(html) {
             const root = content();
@@ -45,6 +79,7 @@ enum PreviewPage {
             root.querySelectorAll('details[data-key]').forEach(d => {
                 if (open.has(d.dataset.key)) { d.open = true; }
             });
+            applyChanges();
         }
 
         function setPlaceholdersVisible(visible) {
@@ -98,7 +133,7 @@ enum PreviewPage {
             scroller.scrollTop = Math.max(0, target - margin);
         }
 
-        return { update, setPlaceholdersVisible, setFontSize, scrollToLine };
+        return { update, setChanges, setPlaceholdersVisible, setFontSize, scrollToLine };
     })();
     """
 
@@ -119,6 +154,8 @@ enum PreviewPage {
         --bad: #cf222e;
         --bad-background: rgba(207, 34, 46, 0.08);
         --ok: #1a7f37;
+        --changed: #0a5fd6;
+        --inserted: #1a7f37;
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -136,6 +173,8 @@ enum PreviewPage {
             --bad: #ff7b72;
             --bad-background: rgba(255, 123, 114, 0.1);
             --ok: #3fb950;
+            --changed: #5aa9ff;
+            --inserted: #3fb950;
         }
     }
     html { background: var(--background); }
@@ -179,6 +218,10 @@ enum PreviewPage {
     th, td { border: 1px solid var(--border); padding: 5px 12px; }
     th { font-weight: 600; }
     tr:nth-child(2n) td { background: var(--code-background); }
+
+    /* Changed since the last commit, as in the editor's gutter. */
+    .chg-modified, .chg-modified a, .chg-modified code { color: var(--changed); }
+    .chg-added, .chg-added a, .chg-added code { color: var(--inserted); }
 
     /* mdship placeholders */
     .mds-ph, .mds-frontmatter { margin: 0 0 1em; }

@@ -72,7 +72,7 @@ final class Document: Identifiable {
     @ObservationIgnored private var pendingTarget: NavigationTarget?
     @ObservationIgnored private var askingAboutDiskChange = false
     @ObservationIgnored private var preferencesObserver: NSObjectProtocol?
-    @ObservationIgnored private var gitBaseline: GitBaseline.State = .unavailable
+    private var gitBaseline: GitBaseline.State = .unavailable
 
     init() {
         let preferences = Preferences.shared
@@ -186,6 +186,7 @@ final class Document: Identifiable {
             self.editor.applyStyles(analysis.styles)
             self.editor.setFoldRegions(analysis.folds)
             self.editor.setLineChanges(analysis.changes)
+            self.preview.setChanges(analysis.changes)
             self.publishProblems(scan: analysis.render.scan.issues + analysis.validation.issues)
             self.preview.show(html: analysis.render.html, directory: url?.deletingLastPathComponent())
             self.updateCaret()
@@ -259,6 +260,79 @@ final class Document: Identifiable {
             guard let self, self.fileURL == url, state != self.gitBaseline else { return }
             self.gitBaseline = state
             self.scheduleRender(immediately: true)
+        }
+    }
+
+    /// The file is in a git repository, so it can be committed.
+    var isGitControlled: Bool { fileURL != nil && gitBaseline != .unavailable }
+
+    /// Asks for a commit message, then commits this file, and pushes if asked.
+    func commitToGit() {
+        guard isGitControlled else {
+            NSSound.beep()
+            return
+        }
+        if isDirty || fileURL == nil {
+            guard save(interactive: true) else { return }
+        }
+        guard let url = fileURL else { return }
+        if case .committed(let committed) = gitBaseline, committed == editor.text {
+            let alert = NSAlert()
+            alert.messageText = "Nothing to commit."
+            alert.informativeText = "“\(displayName)” is the same as in the last commit."
+            alert.runModal()
+            return
+        }
+
+        let field = NSTextView(frame: NSRect(x: 0, y: 0, width: 380, height: 90))
+        field.isRichText = false
+        field.isAutomaticQuoteSubstitutionEnabled = false
+        field.isAutomaticDashSubstitutionEnabled = false
+        field.font = .systemFont(ofSize: NSFont.systemFontSize)
+        field.isVerticallyResizable = true
+        field.textContainerInset = NSSize(width: 4, height: 4)
+        let scroll = NSScrollView(frame: field.frame)
+        scroll.documentView = field
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+
+        let alert = NSAlert()
+        alert.messageText = "Commit “\(displayName)”"
+        alert.informativeText = "Only this file is committed. Type the commit message."
+        alert.accessoryView = scroll
+        alert.addButton(withTitle: "Commit")
+        alert.addButton(withTitle: "Commit + Push")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn || response == .alertSecondButtonReturn else { return }
+        let message = field.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else {
+            let empty = NSAlert()
+            empty.messageText = "The commit message is empty."
+            empty.informativeText = "Nothing was committed."
+            empty.runModal()
+            return
+        }
+        let push = response == .alertSecondButtonReturn
+        statusMessage = StatusMessage(text: push ? "Committing and pushing…" : "Committing…", isError: false)
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try GitCommit.commit(url, message: message, push: push) }
+            }.value
+            switch result {
+            case .success(let summary):
+                statusMessage = StatusMessage(text: summary, isError: false)
+            case .failure(let error):
+                let text = (error as? GitCommit.Failure)?.message ?? error.localizedDescription
+                statusMessage = StatusMessage(text: "Commit failed", isError: true)
+                let failed = NSAlert()
+                failed.alertStyle = .warning
+                failed.messageText = "The commit did not go through."
+                failed.informativeText = text
+                failed.runModal()
+            }
+            refreshGitBaseline()
         }
     }
 
