@@ -11,6 +11,7 @@
 #   ./build.sh stop      quit a running instance
 #   ./build.sh dmg       build Release and package it as a mountable .dmg
 #   ./build.sh notarize  submit the .dmg to Apple and staple the ticket
+#   ./build.sh notarize --amend   only staple, after a stapling step that failed
 #   ./build.sh publish   create the GitHub release from the notarized .dmg
 #   ./build.sh help      the full command list
 #   ./build.sh version [X.Y.Z]   print, or set, the marketing version
@@ -61,6 +62,8 @@ Release commands, in the order a release actually goes out:
   dmg                build Release, sign it, and package
                      build/Tychedit-<version>.dmg
   notarize           submit that .dmg to Apple and staple the ticket
+  notarize --amend   staple only, without submitting again -- for when
+                     Apple accepted the .dmg but stapling the ticket failed
   publish            create the GitHub release for <version> from that
                      .dmg, once it has checked it is notarized and no
                      older than the source it was built from
@@ -233,6 +236,13 @@ version_cmd() {
 }
 
 notarize_dmg() {
+    local amend=0
+    case "${1:-}" in
+        "")      ;;
+        --amend) amend=1 ;;
+        *)       die "unknown notarize option '$1' (only --amend)" ;;
+    esac
+
     # Named after the project's current MARKETING_VERSION, not just "the
     # newest file in ./build": `dmg` and `notarize` are separate commands, and
     # picking by mtime would silently notarize a stale image left over from
@@ -241,6 +251,15 @@ notarize_dmg() {
     version=$(marketing_version)
     dmg="$PWD/build/$SCHEME-$version.dmg"
     [ -f "$dmg" ] || die "no build/$SCHEME-$version.dmg -- run ./build.sh dmg first"
+
+    # Apple keeps the ticket of an accepted submission, so a failed staple --
+    # usually a timed-out ticket lookup -- needs only the staple again, not
+    # another upload. An image that was never accepted has no ticket, and
+    # stapling it fails without changing anything.
+    if [ "$amend" = 1 ]; then
+        staple_dmg "$dmg"
+        return
+    fi
 
     [ -n "$(developer_id || true)" ] || die "notarizing needs a Developer ID certificate"
 
@@ -283,8 +302,14 @@ notarize_dmg() {
         die "notarization failed -- nothing was stapled"
     fi
 
+    staple_dmg "$dmg"
+}
+
+staple_dmg() {
+    local dmg=$1
     info "Stapling the ticket"
-    xcrun stapler staple "$dmg"
+    xcrun stapler staple "$dmg" \
+        || die "stapling failed -- if Apple accepted the .dmg, retry with ./build.sh notarize --amend (a timed-out ticket lookup is usually a stale macOS DNS cache: sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder)"
     xcrun stapler validate "$dmg"
     printf '%s==> Notarized: %s%s\n' "$GREEN" "$dmg" "$OFF"
 }
@@ -507,7 +532,7 @@ case "${1:-build}" in
     stop)     stop_app ;;
     test)     run_tests ;;
     dmg)      make_dmg ;;
-    notarize) notarize_dmg ;;
+    notarize) notarize_dmg "${2:-}" ;;
     publish)  publish_release ;;
     version)  version_cmd "${2:-}" ;;
     *)        die "unknown command '$1' (build | run | release | test | clean | path | stop | dmg | notarize | publish | version | help)" ;;
