@@ -145,7 +145,49 @@ enum PlaceholderValidator {
             for (placeholder, outline) in zip(scan.placeholders, outlines) {
                 check(placeholder, outline)
             }
+            checkFrontMatterNumbering()
             result.issues.sort { $0.location < $1.location }
+        }
+
+        // MARK: Front matter
+
+        /// The `number:` front-matter key: its value, and whether the numbering
+        /// `mdship update` does first would stop it -- more than one h1 with
+        /// `skip-title`, or a changed heading inside guarded generated content.
+        mutating func checkFrontMatterNumbering() {
+            guard let reading = FrontMatterNumbering.read(text, lines: lines) else { return }
+            for problem in reading.problems { report(problem.range, problem.message) }
+            guard let settings = reading.settings, let keyRange = reading.keyRange else { return }
+
+            let original = (0..<lines.count).map { text.substring(with: lines.contentRange(ofLine: $0)) }
+            let numbered: [String]
+            do {
+                numbered = try FrontMatterNumbering.apply(settings, to: original, bodyStart: reading.bodyStart)
+            } catch let error as HeadingNumbering.SkipTitleError {
+                report(reading.skipTitleRange ?? keyRange, error.message)
+                return
+            } catch {
+                return
+            }
+
+            for placeholder in scan.placeholders {
+                // Guarded: mdship recorded the content, and it is still where mdship left it.
+                guard let body = placeholder.bodyRange, body.length > 0,
+                      [.intact, .edited, .overridden].contains(placeholder.integrity) else { continue }
+                let first = lines.line(containing: body.location)
+                let last = lines.line(containing: NSMaxRange(body) - 1)
+                let changed = (first...last).contains { line in
+                    lines.starts[line] >= body.location && original[line] != numbered[line]
+                }
+                guard changed else { continue }
+                let kind = placeholder.kind.rawValue
+                let nameRange = NSRange(location: placeholder.openRange.location, length: 4 + kind.utf16.count)
+                if !settings.generated {
+                    report(nameRange, "heading numbering would change the generated content of the \(kind) placeholder. Set 'generated: true' under the front-matter 'number:' key to let numbering update generated content and its checksum.")
+                } else if placeholder.integrity == .edited {
+                    report(nameRange, "\(kind) placeholder content was manually edited. Hash mismatch detected, so numbering will not recalculate its checksum. Delete _content_generated_ line to override and accept data loss.")
+                }
+            }
         }
 
         // MARK: Placeholders

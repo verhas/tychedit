@@ -50,6 +50,9 @@ enum CompletionProvider {
                             lister: DirectoryLister = .live, probe: FileSystemProbe = .live) -> CompletionList? {
         let ns = text as NSString
         let lines = LineIndex(ns)
+        if let frontMatter = frontMatterLines(in: ns, lines: lines), frontMatter.contains(lines.line(containing: caret)) {
+            return frontMatterCompletions(in: ns, lines: lines, caret: caret, frontMatter: frontMatter, explicit: explicit)
+        }
         if let opening = openingCompletions(in: ns, lines: lines, caret: caret, explicit: explicit) {
             return opening
         }
@@ -158,6 +161,68 @@ enum CompletionProvider {
                                   insertion: snippet.text, kind: .value, required: false, continues: false)
         }
         return CompletionList(items: items, range: content)
+    }
+
+    // MARK: - Front matter
+
+    /// The lines between the opening `---` and the closing one, or to the end
+    /// while the closing one is not written yet.
+    static func frontMatterLines(in ns: NSString, lines: LineIndex) -> Range<Int>? {
+        guard lines.count > 1, ns.substring(with: lines.contentRange(ofLine: 0)) == "---" else { return nil }
+        return 1..<(FrontMatterNumbering.closingLine(ns, lines: lines) ?? lines.count)
+    }
+
+    /// The one front-matter key mdship reads, `number:`, its options and their values.
+    static func frontMatterCompletions(in ns: NSString, lines: LineIndex, caret: Int, frontMatter: Range<Int>,
+                                       explicit: Bool) -> CompletionList? {
+        let caretLine = lines.line(containing: caret)
+        let prefix = ns.substring(with: NSRange(location: lines.starts[caretLine], length: caret - lines.starts[caretLine]))
+        func text(_ line: Int) -> String { ns.substring(with: lines.contentRange(ofLine: line)) }
+        func indent(_ line: String) -> Int { line.prefix { $0 == " " }.count }
+
+        // The lines of the `number:` mapping the caret is in, nil at the top level.
+        var block: [Int]?
+        if prefix.hasPrefix(" ") {
+            var line = caretLine - 1
+            while line >= frontMatter.lowerBound {
+                let content = text(line)
+                if !content.trimmingCharacters(in: .whitespaces).isEmpty && !content.hasPrefix("#") && indent(content) == 0 {
+                    guard bareKey(content) == "number" else { return nil }
+                    block = Array((line + 1)..<frontMatter.upperBound).prefix { indent(text($0)) > 0 || text($0).isEmpty }
+                    break
+                }
+                line -= 1
+            }
+            if block == nil { return nil }
+        }
+        let parameters = block == nil ? [FrontMatterNumbering.key] : FrontMatterNumbering.options
+        let range = { (partial: String) in NSRange(location: caret - partial.utf16.count, length: partial.utf16.count) }
+
+        if let match = firstMatch(keyPattern, prefix), match.string(2).isEmpty {
+            let partial = match.string(3)
+            if partial.isEmpty && !explicit { return nil }
+            let siblings = block ?? Array(frontMatter)
+            let present = Set(siblings.filter { $0 != caretLine }.compactMap { line in
+                firstMatch(keyAtIndentPattern, text(line)).flatMap { match in
+                    (match.string(1).isEmpty) == (block == nil) ? match.string(2) : nil
+                }
+            })
+            // Front matter holds the author's own keys too: only a prefix brings up `number`.
+            let items = parameters.filter { !present.contains($0.name) && $0.name.hasPrefix(partial.lowercased()) }
+                .map { CompletionItem(label: $0.name, detail: $0.summary, insertion: "\($0.name): \u{1}\u{2}",
+                                      kind: .key, required: false, continues: true) }
+            return items.isEmpty ? nil : CompletionList(items: items, range: range(partial))
+        }
+        if let match = firstMatch(valuePattern, prefix), match.string(2).isEmpty,
+           let parameter = parameters.first(where: { $0.name == match.string(3) }),
+           let choices = choices(for: parameter) {
+            let partial = match.string(5)
+            let items = filter(choices, by: partial, name: \.self).map {
+                CompletionItem(label: $0, detail: parameter.summary, insertion: $0, kind: .value, required: false, continues: false)
+            }
+            return items.isEmpty ? nil : CompletionList(items: items, range: range(partial))
+        }
+        return nil
     }
 
     // MARK: - Where the caret is
@@ -392,6 +457,7 @@ enum CompletionProvider {
     private static let openingPattern = try! NSRegularExpression(pattern: #"^[ \t]*<!--([A-Za-z0-9]*)$"#)
     private static let keyPattern = try! NSRegularExpression(pattern: #"^( *)(- +)?([A-Za-z0-9_\-]*)$"#)
     private static let valuePattern = try! NSRegularExpression(pattern: #"^( *)(- +)?([A-Za-z0-9_\-]+):[ \t]*(["']?)([^"'#]*)$"#)
+    private static let keyAtIndentPattern = try! NSRegularExpression(pattern: #"^( *)([A-Za-z0-9_\-]+):"#)
     private static let bareKeyPattern = try! NSRegularExpression(pattern: #"^([A-Za-z0-9_\-]+):[ \t]*(#.*)?$"#)
 
     struct Match {
