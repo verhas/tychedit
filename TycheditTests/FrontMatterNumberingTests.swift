@@ -144,12 +144,33 @@ final class FrontMatterNumberingTests: XCTestCase {
         XCTAssertEqual(labels("---\ntitle: x\n|\n---\n"), ["number"])
         XCTAssertEqual(labels("---\nnumber: true\n|\n---\n"), [])
         XCTAssertEqual(labels("---\nti|\n---\n", explicit: false), [])
-        XCTAssertEqual(labels("---\nnumber: |\n---\n"), ["true", "false"])
+        XCTAssertEqual(labels("---\nnumber: |\n---\n"), ["true", "false", "options…"])
+        XCTAssertEqual(labels("---\nnumber: t|\n---\n"), ["true"])
         XCTAssertEqual(labels("---\nnumber:\n  |\n---\n"), ["style", "skip-title", "generated", "post-process"])
         XCTAssertEqual(labels("---\nnumber:\n  style: space\n  |\n---\n"), ["skip-title", "generated", "post-process"])
         XCTAssertEqual(labels("---\nnumber:\n  style: |\n---\n"), ["period", "space", "parenthesis"])
         XCTAssertEqual(labels("---\nnumber:\n  post-process: t|\n---\n"), ["true"])
         XCTAssertEqual(labels("---\nauthor:\n  |\n---\n"), [])
+    }
+
+    /// Choosing `number`, then "options…", must land on a line whose suggestions
+    /// are the options -- the mapping form is reachable without knowing it exists.
+    func testOptionsAreReachableFromTheKey() throws {
+        func accept(_ label: String, in textWithCaret: String) throws -> String {
+            let caret = (textWithCaret as NSString).range(of: "|").location
+            let text = textWithCaret.replacingOccurrences(of: "|", with: "")
+            let list = try XCTUnwrap(CompletionProvider.completions(in: text, at: caret, documentURL: nil, explicit: true))
+            let item = try XCTUnwrap(list.items.first { $0.label == label })
+            XCTAssertTrue(item.continues, label)
+            // The caret goes where the insertion's markers are.
+            let insertion = item.insertion.replacingOccurrences(of: "\u{1}", with: "|").replacingOccurrences(of: "\u{2}", with: "")
+            return (text as NSString).replacingCharacters(in: list.range, with: insertion)
+        }
+        let afterKey = try accept("number", in: "---\nnum|\n---\n")
+        XCTAssertEqual(afterKey, "---\nnumber: |\n---\n")
+        let afterOptions = try accept("options…", in: afterKey)
+        XCTAssertEqual(afterOptions, "---\nnumber: \n  |\n---\n")
+        XCTAssertEqual(labels(afterOptions), ["style", "skip-title", "generated", "post-process"])
     }
 
     func testFrontMatterCompletionStaysInTheFrontMatter() {

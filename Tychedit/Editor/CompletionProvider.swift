@@ -217,8 +217,15 @@ enum CompletionProvider {
            let parameter = parameters.first(where: { $0.name == match.string(3) }),
            let choices = choices(for: parameter) {
             let partial = match.string(5)
-            let items = filter(choices, by: partial, name: \.self).map {
+            var items = filter(choices, by: partial, name: \.self).map {
                 CompletionItem(label: $0, detail: parameter.summary, insertion: $0, kind: .value, required: false, continues: false)
+            }
+            // `number:` is also a mapping: offer to start one, and the options
+            // come up on the indented line it opens.
+            if block == nil && partial.isEmpty {
+                let names = FrontMatterNumbering.options.map(\.name).joined(separator: ", ")
+                items.append(CompletionItem(label: "options…", detail: "Number with options: \(names)",
+                                            insertion: "\n  \u{1}\u{2}", kind: .value, required: false, continues: true))
             }
             return items.isEmpty ? nil : CompletionList(items: items, range: range(partial))
         }
